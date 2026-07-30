@@ -132,7 +132,7 @@ namespace NPCComeToMe
                 return;
 
             foreach (NPC npc in this.CapturedNpcs.Keys.Where(npc => npc.currentLocation != e.NewLocation).ToList())
-                this.ReleaseNpc(npc, $"{npc.displayName} foi liberado automaticamente porque você saiu do local.");
+                this.ReleaseNpc(npc, this.Helper.Translation.Get("message.npc-auto-released", new { name = npc.displayName }));
         }
 
         /// <summary>Registra a tela de configuração no Generic Mod Config Menu, se ele estiver instalado.</summary>
@@ -150,16 +150,16 @@ namespace NPCComeToMe
 
             gmcm.AddKeybindList(
                 mod: this.ModManifest,
-                name: () => "Tecla para chamar NPC",
-                tooltip: () => "Abre uma caixa para você digitar o nome do NPC que quer teleportar até você.",
+                name: () => this.Helper.Translation.Get("config.open-menu-key.name"),
+                tooltip: () => this.Helper.Translation.Get("config.open-menu-key.tooltip"),
                 getValue: () => this.Config.OpenMenuKey,
                 setValue: value => this.Config.OpenMenuKey = value
             );
 
             gmcm.AddKeybindList(
                 mod: this.ModManifest,
-                name: () => "Tecla para liberar NPC",
-                tooltip: () => "Mire o cursor no NPC chamado e aperte essa tecla pra ele voltar à rotina normal.",
+                name: () => this.Helper.Translation.Get("config.release-npc-key.name"),
+                tooltip: () => this.Helper.Translation.Get("config.release-npc-key.tooltip"),
                 getValue: () => this.Config.ReleaseNpcKey,
                 setValue: value => this.Config.ReleaseNpcKey = value
             );
@@ -203,7 +203,7 @@ namespace NPCComeToMe
         /// <summary>Abre a caixa de texto nativa do jogo (a mesma usada para nomear bichos de estimação) para digitar o nome do NPC.</summary>
         private void OpenNpcNamingMenu()
         {
-            this.openNamingMenu = new NamingMenu(this.OnNpcNamed, "Qual NPC você quer chamar?", "");
+            this.openNamingMenu = new NamingMenu(this.OnNpcNamed, this.Helper.Translation.Get("naming-menu.prompt"), "");
             Game1.activeClickableMenu = this.openNamingMenu;
         }
 
@@ -220,7 +220,7 @@ namespace NPCComeToMe
             NPC? npc = this.FindNpc(enteredName);
             if (npc is null)
             {
-                Game1.addHUDMessage(new HUDMessage($"Não encontrei nenhum NPC chamado \"{enteredName}\".", HUDMessage.error_type));
+                Game1.addHUDMessage(new HUDMessage(this.Helper.Translation.Get("error.npc-not-found", new { name = enteredName }), HUDMessage.error_type));
                 return;
             }
 
@@ -277,7 +277,7 @@ namespace NPCComeToMe
             this.SetFreezeMotion(npc, true);
             this.CapturedNpcs[npc] = originalSpot;
 
-            Game1.addHUDMessage(new HUDMessage($"{npc.displayName} veio até você! Mire nele e aperte a tecla de liberar quando terminar."));
+            Game1.addHUDMessage(new HUDMessage(this.Helper.Translation.Get("message.npc-arrived", new { name = npc.displayName })));
         }
 
         /// <summary>Procura, entre os NPCs capturados no mapa atual, qual está sob o cursor do mouse, e o libera de volta à rotina.</summary>
@@ -292,7 +292,7 @@ namespace NPCComeToMe
 
             if (target is null)
             {
-                Game1.addHUDMessage(new HUDMessage("Mire o cursor em cima de um NPC chamado pra liberar ele.", HUDMessage.error_type));
+                Game1.addHUDMessage(new HUDMessage(this.Helper.Translation.Get("error.no-npc-under-cursor"), HUDMessage.error_type));
                 return;
             }
 
@@ -308,7 +308,7 @@ namespace NPCComeToMe
             if (!this.CapturedNpcs.Remove(npc, out OriginalSpot originalSpot))
                 return;
 
-            string finalMessage = hudMessage ?? $"{npc.displayName} voltou pra rotina dele.";
+            string finalMessage = hudMessage ?? this.Helper.Translation.Get("message.npc-released", new { name = npc.displayName });
 
             if (this.TryStartWalkingHome(npc, originalSpot, finalMessage))
                 return;

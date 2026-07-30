@@ -1,0 +1,16 @@
+{
+    "config.open-menu-key.name": "Tecla para chamar NPC",
+    "config.open-menu-key.tooltip": "Abre uma caixa para você digitar o nome do NPC que quer teleportar até você.",
+
+    "config.release-npc-key.name": "Tecla para liberar NPC",
+    "config.release-npc-key.tooltip": "Mire o cursor no NPC chamado e aperte essa tecla pra ele voltar à rotina normal.",
+
+    "naming-menu.prompt": "Qual NPC você quer chamar?",
+
+    "error.npc-not-found": "Não encontrei nenhum NPC chamado \"{{name}}\".",
+    "error.no-npc-under-cursor": "Mire o cursor em cima de um NPC chamado pra liberar ele.",
+
+    "message.npc-arrived": "{{name}} veio até você! Mire nele e aperte a tecla de liberar quando terminar.",
+    "message.npc-released": "{{name}} voltou pra rotina dele.",
+    "message.npc-auto-released": "{{name}} foi liberado automaticamente porque você saiu do local."
+}
