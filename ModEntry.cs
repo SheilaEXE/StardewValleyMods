@@ -24,16 +24,25 @@ namespace NPCComeToMe
 
         /// <summary>
         /// Um NPC que já foi liberado e está andando até a porta de saída do mapa atual, esperando cruzar pro
-        /// mapa de origem (o próprio jogo faz essa travessia sozinho — só ficamos de olho pra saber quando
-        /// ele chega, e então mandar a perna final da caminhada). "TicksWaited" é uma rede de segurança: se
-        /// ele ficar preso e nunca cruzar, depois de um tempo desistimos de esperar e teleportamos.
+        /// próximo mapa (o próprio jogo faz essa travessia sozinho — só ficamos de olho pra saber quando ele
+        /// sai do mapa onde essa perna começou; pode não ser o destino final ainda, se precisar de mais de um
+        /// pulo, caso em que mandamos a próxima perna a partir de onde ele chegou). "TicksWaited"/"TimeoutTicks"
+        /// são uma rede de segurança: se ele ficar preso e nunca cruzar, depois de um tempo desistimos de
+        /// esperar e teleportamos — "TimeoutTicks" é calculado a partir do tamanho do caminho dessa perna, pra
+        /// não desistir cedo demais em trajetos longos (tipo atravessar uma fazenda grande).
         /// </summary>
-        private readonly record struct PendingHomecoming(OriginalSpot Spot, string HudMessage, int TicksWaited);
+        private readonly record struct PendingHomecoming(OriginalSpot Spot, string HudMessage, string LegStartLocation, int TicksWaited, int TimeoutTicks);
 
-        /// <summary>Depois de quantos ticks sem cruzar o mapa desistimos de esperar e teleportamos direto (~30s a 60 ticks/s).</summary>
-        private const int MaxTicksWaitingToCrossMap = 1800;
+        /// <summary>Ticks mínimos de tolerância antes de desistir da travessia, mesmo pra caminhos curtos (~10s a 60 ticks/s).</summary>
+        private const int MinTicksWaitingToCrossMap = 600;
+
+        /// <summary>Ticks extras de tolerância por tile do caminho, além do mínimo — dá margem pra desvios e paradas por outros NPCs no caminho.</summary>
+        private const int ExtraTicksPerPathTile = 30;
 
         private ModConfig Config = null!;
+
+        /// <summary>A caixa de digitar o nome do NPC, se estiver aberta no momento (pra saber se um Esc/B é pra fechar ela).</summary>
+        private NamingMenu? openNamingMenu;
 
         /// <summary>NPCs atualmente chamados e congelados, com o lugar de onde vieram (esperando serem liberados).</summary>
         private readonly Dictionary<NPC, OriginalSpot> CapturedNpcs = new();
@@ -69,9 +78,11 @@ namespace NPCComeToMe
         }
 
         /// <summary>
-        /// A cada tick, checa se algum NPC a caminho de casa já cruzou pro mapa de origem (o jogo faz a
-        /// travessia sozinho quando ele esbarra na porta/warp — não tem um evento direto pra isso). Se cruzou,
-        /// manda a perna final da caminhada; se está demorando demais (preso em algum lugar), desiste e teleporta.
+        /// A cada tick, checa se algum NPC a caminho de casa já saiu do mapa onde a perna atual começou (o jogo
+        /// faz a travessia sozinho quando ele esbarra na porta/warp — não tem um evento direto pra isso). Se
+        /// saiu, tenta continuar a partir de onde chegou — pode ser o destino final (perna final andando) ou só
+        /// mais um pulo no meio do caminho (outra perna de travessia). Se está demorando demais presa em algum
+        /// lugar, desiste e teleporta.
         /// </summary>
         private void CheckWalkingHomeProgress()
         {
@@ -83,14 +94,15 @@ namespace NPCComeToMe
                 NPC npc = entry.Key;
                 PendingHomecoming pending = entry.Value;
 
-                if (npc.currentLocation?.NameOrUniqueName == pending.Spot.LocationName)
+                if (npc.currentLocation?.NameOrUniqueName != pending.LegStartLocation)
                 {
                     this.WalkingHome.Remove(npc);
-                    this.WalkFinalLegOrTeleport(npc, pending.Spot, pending.HudMessage);
+                    if (!this.TryStartWalkingHome(npc, pending.Spot, pending.HudMessage))
+                        this.TeleportNpcHome(npc, pending.Spot, pending.HudMessage);
                     continue;
                 }
 
-                if (pending.TicksWaited + 1 > MaxTicksWaitingToCrossMap)
+                if (pending.TicksWaited + 1 > pending.TimeoutTicks)
                 {
                     this.WalkingHome.Remove(npc);
                     this.TeleportNpcHome(npc, pending.Spot, pending.HudMessage); // ficou preso na travessia: desiste e teleporta
@@ -155,7 +167,23 @@ namespace NPCComeToMe
 
         private void OnButtonsChanged(object? sender, ButtonsChangedEventArgs e)
         {
-            if (!Context.IsWorldReady || Game1.activeClickableMenu != null)
+            if (!Context.IsWorldReady)
+                return;
+
+            // a NamingMenu nativa não fecha sozinha com Esc/B (ela foi feita pra nomes obrigatórios, tipo bichos de
+            // estimação); como aqui cancelar é uma opção válida, fechamos manualmente sem tentar chamar ninguém.
+            if (this.openNamingMenu != null && Game1.activeClickableMenu == this.openNamingMenu)
+            {
+                if (e.Pressed.Contains(SButton.Escape) || e.Pressed.Contains(SButton.ControllerB))
+                {
+                    this.Helper.Input.Suppress(e.Pressed.Contains(SButton.Escape) ? SButton.Escape : SButton.ControllerB);
+                    Game1.exitActiveMenu();
+                    this.openNamingMenu = null;
+                }
+                return;
+            }
+
+            if (Game1.activeClickableMenu != null)
                 return;
 
             if (this.Config.OpenMenuKey.JustPressed())
@@ -175,13 +203,15 @@ namespace NPCComeToMe
         /// <summary>Abre a caixa de texto nativa do jogo (a mesma usada para nomear bichos de estimação) para digitar o nome do NPC.</summary>
         private void OpenNpcNamingMenu()
         {
-            Game1.activeClickableMenu = new NamingMenu(this.OnNpcNamed, "Qual NPC você quer chamar?", "");
+            this.openNamingMenu = new NamingMenu(this.OnNpcNamed, "Qual NPC você quer chamar?", "");
+            Game1.activeClickableMenu = this.openNamingMenu;
         }
 
         /// <summary>Chamado pelo NamingMenu quando o jogador aperta OK/Enter.</summary>
         private void OnNpcNamed(string enteredName)
         {
             Game1.exitActiveMenu();
+            this.openNamingMenu = null;
 
             enteredName = enteredName?.Trim() ?? "";
             if (enteredName.Length == 0)
@@ -237,7 +267,7 @@ namespace NPCComeToMe
             Vector2 targetTile = this.GetSideTile(player);
 
             Game1.warpCharacter(npc, targetLocation, targetTile);
-            npc.faceDirection(player.FacingDirection);
+            npc.faceDirection(2); // sempre de frente pra câmera (baixo), independente de pra onde o jogador está olhando
 
             // Pausa o movimento sem mexer no controller/Schedule: o jogo continua calculando
             // a rotina dele por baixo dos panos, só não deixa ele efetivamente andar enquanto está "congelado".
@@ -301,7 +331,7 @@ namespace NPCComeToMe
             if (currentLocation.NameOrUniqueName == originalSpot.LocationName)
                 return this.TryWalkFinalLeg(npc, currentLocation, originalSpot, hudMessage);
 
-            Point? exitTile = this.GetExitTileToward(npc, originalSpot.LocationName);
+            Point? exitTile = this.GetNextHopExitTile(npc, originalSpot.LocationName);
             if (exitTile is null)
                 return false;
 
@@ -314,7 +344,9 @@ namespace NPCComeToMe
             npc.Sprite.StopAnimation(); // limpa qualquer animação customizada (ex: sentado) que travaria as pernas durante a caminhada
 
             npc.controller = new PathFindController(path, npc, currentLocation); // este construtor liga "NPCSchedule" sozinho
-            this.WalkingHome[npc] = new PendingHomecoming(originalSpot, hudMessage, 0);
+
+            int timeoutTicks = MinTicksWaitingToCrossMap + path.Count * ExtraTicksPerPathTile;
+            this.WalkingHome[npc] = new PendingHomecoming(originalSpot, hudMessage, currentLocation.NameOrUniqueName, 0, timeoutTicks);
             return true;
         }
 
@@ -405,6 +437,54 @@ namespace NPCComeToMe
             return location.doors.Pairs
                 .Where(kvp => kvp.Value == targetLocationName)
                 .Select(kvp => kvp.Key)
+                .OrderBy(p => Math.Abs(p.X - npcTile.X) + Math.Abs(p.Y - npcTile.Y))
+                .Cast<Point?>()
+                .FirstOrDefault();
+        }
+
+        /// <summary>
+        /// Acha o tile de saída do local atual em direção ao destino final, considerando que pode levar mais
+        /// de um pulo pra chegar lá. Tenta, em ordem: (1) uma porta/warp direta pro destino; (2) o próximo pulo
+        /// segundo o grafo de rotas que o próprio jogo usa pras rotinas dos NPCs; (3) pra locais que o jogo
+        /// exclui de propósito desse grafo (como a Farm — NPCs não vagueiam por ela sozinhos no jogo base), a
+        /// saída "oficial" reconhecida pelo próprio jogo pra sair da fazenda é sempre em direção ao ponto de
+        /// ônibus (é o que o jogo usa até pra cônjuges voltando pra casa); (4) por último, qualquer saída
+        /// disponível, caso nem isso exista. Assim que o NPC deixa a fazenda, o grafo normal volta a funcionar.
+        /// </summary>
+        private Point? GetNextHopExitTile(NPC npc, string finalLocationName)
+        {
+            Point? direct = this.GetExitTileToward(npc, finalLocationName);
+            if (direct != null)
+                return direct;
+
+            string[]? route = WarpPathfindingCache.GetLocationRoute(npc.currentLocation.NameOrUniqueName, finalLocationName, npc.Gender);
+            if (route != null && route.Length >= 2)
+            {
+                Point? viaRoute = this.GetExitTileToward(npc, route[1]);
+                if (viaRoute != null)
+                    return viaRoute;
+            }
+
+            Point? towardBusStop = this.GetExitTileToward(npc, "BusStop");
+            if (towardBusStop != null)
+                return towardBusStop;
+
+            return this.GetNearestExitTile(npc);
+        }
+
+        /// <summary>Acha, no local atual do NPC, o tile de saída (porta ou warp) mais próximo, seja qual for o destino dela.</summary>
+        private Point? GetNearestExitTile(NPC npc)
+        {
+            GameLocation? location = npc.currentLocation;
+            if (location is null)
+                return null;
+
+            Vector2 npcTile = npc.Tile;
+
+            IEnumerable<Point> warpPoints = location.warps.Select(w => new Point(w.X, w.Y));
+            IEnumerable<Point> doorPoints = location.doors.Pairs.Select(kvp => kvp.Key);
+
+            return warpPoints.Concat(doorPoints)
                 .OrderBy(p => Math.Abs(p.X - npcTile.X) + Math.Abs(p.Y - npcTile.Y))
                 .Cast<Point?>()
                 .FirstOrDefault();
