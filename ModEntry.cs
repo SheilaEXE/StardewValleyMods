@@ -20,7 +20,7 @@ namespace NPCComeToMe
         /// adivinhar reconstruindo pelo nome do comportamento — isso já causou o NPC voltar fazendo a coisa
         /// errada (ex: dormindo) por causa de um nome de comportamento desatualizado.
         /// </summary>
-        private readonly record struct OriginalSpot(string LocationName, Vector2 Tile, PathFindController? Controller, int FacingDirection, List<FarmerSprite.AnimationFrame>? Animation, bool AnimationLoop, int SpriteFrame);
+        private readonly record struct OriginalSpot(string LocationName, Vector2 Tile, PathFindController? Controller, int FacingDirection, List<FarmerSprite.AnimationFrame>? Animation, bool AnimationLoop, int SpriteFrame, bool FollowSchedule);
 
         /// <summary>
         /// Um NPC que já foi liberado e está andando até a porta de saída do mapa atual, esperando cruzar pro
@@ -261,7 +261,15 @@ namespace NPCComeToMe
                 npc.FacingDirection,
                 npc.Sprite.CurrentAnimation is { } animation ? new List<FarmerSprite.AnimationFrame>(animation) : null,
                 npc.Sprite.loop,
-                npc.Sprite.CurrentFrame);
+                npc.Sprite.CurrentFrame,
+                npc.followSchedule);
+
+            // Cônjuges com "followSchedule" ativo recebem um desvio especial do próprio jogo sempre que saem
+            // da Farmhouse por uma porta (o "handleWarps" força o destino pra "BusStop", ignorando a porta real
+            // e desincronizando nossa caminhada de volta). Desligamos aqui e restauramos só quando o NPC
+            // termina de voltar pra rotina — assim ele se comporta como qualquer outro NPC enquanto está sob
+            // nosso controle.
+            npc.followSchedule = false;
 
             GameLocation targetLocation = player.currentLocation;
             Vector2 targetTile = this.GetSideTile(player);
@@ -429,6 +437,7 @@ namespace NPCComeToMe
         {
             npc.faceDirection(originalSpot.FacingDirection);
             npc.controller = originalSpot.Controller;
+            npc.followSchedule = originalSpot.FollowSchedule;
 
             if (originalSpot.Animation != null)
             {
