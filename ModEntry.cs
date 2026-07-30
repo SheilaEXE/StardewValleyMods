@@ -266,7 +266,7 @@ namespace NPCComeToMe
             GameLocation targetLocation = player.currentLocation;
             Vector2 targetTile = this.GetSideTile(player);
 
-            Game1.warpCharacter(npc, targetLocation, targetTile);
+            this.WarpNpcToExactTile(npc, targetLocation, targetTile);
             npc.faceDirection(2); // sempre de frente pra câmera (baixo), independente de pra onde o jogador está olhando
 
             // Pausa o movimento sem mexer no controller/Schedule: o jogo continua calculando
@@ -381,11 +381,42 @@ namespace NPCComeToMe
         /// <summary>Teleporta o NPC direto pro local original e restaura o estado dele — usado quando não dá pra andar (sem caminho, sem porta, ou preso demais tempo na travessia).</summary>
         private void TeleportNpcHome(NPC npc, OriginalSpot originalSpot, string hudMessage)
         {
-            Game1.warpCharacter(npc, originalSpot.LocationName, originalSpot.Tile);
+            this.WarpNpcToExactTile(npc, originalSpot.LocationName, originalSpot.Tile);
             npc.movementPause = 0;
             this.SetFreezeMotion(npc, false);
             this.RestoreNpcPose(npc, originalSpot);
             Game1.addHUDMessage(new HUDMessage(hudMessage));
+        }
+
+        /// <summary>
+        /// Teleporta o NPC pro tile exato pedido. O próprio "Game1.warpCharacter" trata cônjuges de forma
+        /// especial sempre que o destino é a Farmhouse: chama "NPC.arriveAtFarmHouse", que ignora o tile
+        /// pedido, prende o NPC na porta de entrada e monta um controller pra ele andar sozinho até a
+        /// cozinha/cama (além de pular a rotina dele pelo resto do dia). Desfazemos esse efeito colateral aqui,
+        /// senão cônjuges nunca aparecem no lugar certo quando chamados ou devolvidos pra dentro de casa.
+        /// </summary>
+        private void WarpNpcToExactTile(NPC npc, GameLocation location, Vector2 tile)
+        {
+            Game1.warpCharacter(npc, location, tile);
+            this.UndoSpouseFarmhouseArrival(npc, tile);
+        }
+
+        /// <inheritdoc cref="WarpNpcToExactTile(NPC, GameLocation, Vector2)"/>
+        private void WarpNpcToExactTile(NPC npc, string locationName, Vector2 tile)
+        {
+            Game1.warpCharacter(npc, locationName, tile);
+            this.UndoSpouseFarmhouseArrival(npc, tile);
+        }
+
+        private void UndoSpouseFarmhouseArrival(NPC npc, Vector2 tile)
+        {
+            if (npc.currentLocation is not StardewValley.Locations.FarmHouse)
+                return;
+
+            npc.Position = new Vector2(tile.X * 64f, tile.Y * 64f);
+            npc.controller = null;
+            npc.temporaryController = null;
+            npc.ignoreScheduleToday = false;
         }
 
         /// <summary>
