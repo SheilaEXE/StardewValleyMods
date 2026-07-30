@@ -13,10 +13,14 @@ namespace NPCComeToMe
     internal sealed class ModEntry : Mod
     {
         /// <summary>
-        /// De onde um NPC foi chamado (pra devolvê-lo exatamente ali) e o controller de pathfinding que ele
-        /// tinha no momento da captura (pra restaurar a rota real da rotina depois que ele andar de volta).
+        /// De onde um NPC foi chamado (pra devolvê-lo exatamente ali), o controller de pathfinding que ele
+        /// tinha no momento da captura (pra retomar a rota real depois que ele andar de volta), e a "pose"
+        /// visual dele (direção que olhava + a animação customizada que estava tocando, tipo sentado assistindo
+        /// TV, e o frame parado caso não houvesse animação). Guardamos o estado visual bruto em vez de tentar
+        /// adivinhar reconstruindo pelo nome do comportamento — isso já causou o NPC voltar fazendo a coisa
+        /// errada (ex: dormindo) por causa de um nome de comportamento desatualizado.
         /// </summary>
-        private readonly record struct OriginalSpot(string LocationName, Vector2 Tile, PathFindController? Controller);
+        private readonly record struct OriginalSpot(string LocationName, Vector2 Tile, PathFindController? Controller, int FacingDirection, List<FarmerSprite.AnimationFrame>? Animation, bool AnimationLoop, int SpriteFrame);
 
         /// <summary>
         /// Um NPC que já foi liberado e está andando até a porta de saída do mapa atual, esperando cruzar pro
@@ -219,8 +223,15 @@ namespace NPCComeToMe
         /// <summary>Move o NPC para um tile livre ao lado do jogador e o congela ali, esperando ser liberado.</summary>
         private void TeleportNpcToPlayer(NPC npc, Farmer player)
         {
-            // guarda de onde ele veio e a rota que ele tinha, antes de mexer em qualquer coisa
-            var originalSpot = new OriginalSpot(npc.currentLocation.NameOrUniqueName, npc.Tile, npc.controller);
+            // guarda de onde ele veio, a rota e a pose visual (direção + animação/frame) que ele tinha, antes de mexer em qualquer coisa
+            var originalSpot = new OriginalSpot(
+                npc.currentLocation.NameOrUniqueName,
+                npc.Tile,
+                npc.controller,
+                npc.FacingDirection,
+                npc.Sprite.CurrentAnimation is { } animation ? new List<FarmerSprite.AnimationFrame>(animation) : null,
+                npc.Sprite.loop,
+                npc.Sprite.CurrentFrame);
 
             GameLocation targetLocation = player.currentLocation;
             Vector2 targetTile = this.GetSideTile(player);
@@ -300,6 +311,7 @@ namespace NPCComeToMe
 
             npc.movementPause = 0;
             this.SetFreezeMotion(npc, false);
+            npc.Sprite.StopAnimation(); // limpa qualquer animação customizada (ex: sentado) que travaria as pernas durante a caminhada
 
             npc.controller = new PathFindController(path, npc, currentLocation); // este construtor liga "NPCSchedule" sozinho
             this.WalkingHome[npc] = new PendingHomecoming(originalSpot, hudMessage, 0);
@@ -317,10 +329,11 @@ namespace NPCComeToMe
 
             npc.movementPause = 0;
             this.SetFreezeMotion(npc, false);
+            npc.Sprite.StopAnimation(); // limpa qualquer animação customizada (ex: sentado) que travaria as pernas durante a caminhada
 
             npc.controller = new PathFindController(path, npc, location)
             {
-                finalFacingDirection = 2,
+                finalFacingDirection = originalSpot.FacingDirection,
                 endBehaviorFunction = (c, l) => this.OnNpcFinishedWalkingHome(c as NPC, originalSpot, hudMessage)
             };
             return true;
@@ -333,14 +346,37 @@ namespace NPCComeToMe
                 this.TeleportNpcHome(npc, originalSpot, hudMessage);
         }
 
-        /// <summary>Teleporta o NPC direto pro local original e restaura a rota que ele tinha antes de ser chamado — usado quando não dá pra andar (sem caminho, sem porta, ou preso demais tempo na travessia).</summary>
+        /// <summary>Teleporta o NPC direto pro local original e restaura o estado dele — usado quando não dá pra andar (sem caminho, sem porta, ou preso demais tempo na travessia).</summary>
         private void TeleportNpcHome(NPC npc, OriginalSpot originalSpot, string hudMessage)
         {
             Game1.warpCharacter(npc, originalSpot.LocationName, originalSpot.Tile);
             npc.movementPause = 0;
             this.SetFreezeMotion(npc, false);
-            npc.controller = originalSpot.Controller;
+            this.RestoreNpcPose(npc, originalSpot);
             Game1.addHUDMessage(new HUDMessage(hudMessage));
+        }
+
+        /// <summary>
+        /// Restaura a rota (controller) e a pose visual que o NPC tinha antes de ser chamado: a direção que
+        /// estava olhando e a animação customizada que estava tocando (tipo sentado assistindo TV), ou o frame
+        /// parado, se não houvesse animação nenhuma. Sem essa parte, o NPC volta parado olhando pra frente em
+        /// vez de retomar exatamente o que estava fazendo.
+        /// </summary>
+        private void RestoreNpcPose(NPC npc, OriginalSpot originalSpot)
+        {
+            npc.faceDirection(originalSpot.FacingDirection);
+            npc.controller = originalSpot.Controller;
+
+            if (originalSpot.Animation != null)
+            {
+                npc.Sprite.loop = originalSpot.AnimationLoop;
+                npc.Sprite.setCurrentAnimation(originalSpot.Animation);
+            }
+            else
+            {
+                npc.Sprite.StopAnimation();
+                npc.Sprite.CurrentFrame = originalSpot.SpriteFrame;
+            }
         }
 
         /// <summary>
@@ -374,14 +410,14 @@ namespace NPCComeToMe
                 .FirstOrDefault();
         }
 
-        /// <summary>Chamado quando o NPC termina a perna final da caminhada (já no mapa de origem): restaura o controller real que ele tinha antes de ser chamado, deixando-o continuar a rotina de onde realmente parou.</summary>
+        /// <summary>Chamado quando o NPC termina a perna final da caminhada (já no mapa de origem): restaura a pose e a rota que ele tinha antes de ser chamado, deixando-o exatamente como estava.</summary>
         private void OnNpcFinishedWalkingHome(NPC? npc, OriginalSpot originalSpot, string hudMessage)
         {
             if (npc is null)
                 return;
 
             npc.Halt();
-            npc.controller = originalSpot.Controller;
+            this.RestoreNpcPose(npc, originalSpot);
 
             Game1.addHUDMessage(new HUDMessage(hudMessage));
         }
