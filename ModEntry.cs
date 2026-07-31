@@ -33,11 +33,11 @@ namespace NPCComeToMe
         /// </summary>
         private readonly record struct PendingHomecoming(OriginalSpot Spot, string HudMessage, string LegStartLocation, int TicksWaited, int TimeoutTicks);
 
-        /// <summary>Ticks mínimos de tolerância antes de desistir da travessia, mesmo pra caminhos curtos (~10s a 60 ticks/s).</summary>
-        private const int MinTicksWaitingToCrossMap = 600;
+        /// <summary>Ticks mínimos de tolerância antes de desistir da travessia, mesmo pra caminhos curtos (~15s a 60 ticks/s).</summary>
+        private const int MinTicksWaitingToCrossMap = 900;
 
-        /// <summary>Ticks extras de tolerância por tile do caminho, além do mínimo — dá margem pra desvios e paradas por outros NPCs no caminho.</summary>
-        private const int ExtraTicksPerPathTile = 30;
+        /// <summary>Ticks extras de tolerância por tile do caminho, além do mínimo — dá margem ampla pra fazendas grandes, desvios e interferência de outros mods.</summary>
+        private const int ExtraTicksPerPathTile = 90;
 
         private ModConfig Config = null!;
 
@@ -96,16 +96,18 @@ namespace NPCComeToMe
 
                 if (npc.currentLocation?.NameOrUniqueName != pending.LegStartLocation)
                 {
+                    this.LogRoute(npc, "map-change", $"left={pending.LegStartLocation}; {this.DescribeNpcState(npc)}");
                     this.WalkingHome.Remove(npc);
                     if (!this.TryStartWalkingHome(npc, pending.Spot, pending.HudMessage))
-                        this.TeleportNpcHome(npc, pending.Spot, pending.HudMessage);
+                        this.TeleportNpcHome(npc, pending.Spot, pending.HudMessage, "could not start the next route leg after changing maps");
                     continue;
                 }
 
                 if (pending.TicksWaited + 1 > pending.TimeoutTicks)
                 {
+                    this.LogRoute(npc, "timeout", $"waited={pending.TicksWaited + 1}/{pending.TimeoutTicks}; legStart={pending.LegStartLocation}; {this.DescribeNpcState(npc)}");
                     this.WalkingHome.Remove(npc);
-                    this.TeleportNpcHome(npc, pending.Spot, pending.HudMessage); // ficou preso na travessia: desiste e teleporta
+                    this.TeleportNpcHome(npc, pending.Spot, pending.HudMessage, "timed out waiting to cross the current map");
                 }
                 else
                 {
@@ -138,6 +140,10 @@ namespace NPCComeToMe
         /// <summary>Registra a tela de configuração no Generic Mod Config Menu, se ele estiver instalado.</summary>
         private void OnGameLaunched(object? sender, GameLaunchedEventArgs e)
         {
+            this.Monitor.Log(
+                $"[route-debug] Wandering Spouses loaded: {this.Helper.ModRegistry.IsLoaded("dandm1.WanderingSpouses")}. Route diagnostics are enabled.",
+                LogLevel.Info);
+
             IGenericModConfigMenuApi? gmcm = this.Helper.ModRegistry.GetApi<IGenericModConfigMenuApi>("spacechase0.GenericModConfigMenu");
             if (gmcm is null)
                 return;
@@ -253,16 +259,44 @@ namespace NPCComeToMe
         /// <summary>Move o NPC para um tile livre ao lado do jogador e o congela ali, esperando ser liberado.</summary>
         private void TeleportNpcToPlayer(NPC npc, Farmer player)
         {
-            // guarda de onde ele veio, a rota e a pose visual (direção + animação/frame) que ele tinha, antes de mexer em qualquer coisa
-            var originalSpot = new OriginalSpot(
-                npc.currentLocation.NameOrUniqueName,
-                npc.Tile,
-                npc.controller,
-                npc.FacingDirection,
-                npc.Sprite.CurrentAnimation is { } animation ? new List<FarmerSprite.AnimationFrame>(animation) : null,
-                npc.Sprite.loop,
-                npc.Sprite.CurrentFrame,
-                npc.followSchedule);
+            OriginalSpot originalSpot;
+            string captureMode;
+
+            if (this.CapturedNpcs.TryGetValue(npc, out OriginalSpot capturedSpot))
+            {
+                originalSpot = capturedSpot;
+                captureMode = "recalled-while-captured";
+            }
+            else if (this.WalkingHome.Remove(npc, out PendingHomecoming pending))
+            {
+                // Interrompe somente a volta em andamento. A origem real e todo o estado que existia antes da
+                // primeira chamada continuam vindo do PendingHomecoming, em vez de capturarmos um ponto
+                // intermediário da caminhada com followSchedule=false.
+                originalSpot = pending.Spot;
+                captureMode = "interrupted-homecoming";
+                npc.controller = null;
+                npc.temporaryController = null;
+            }
+            else
+            {
+                // Guarda de onde ele veio, a rota e a pose visual (direção + animação/frame) que ele tinha,
+                // antes de mexer em qualquer coisa.
+                originalSpot = new OriginalSpot(
+                    npc.currentLocation.NameOrUniqueName,
+                    npc.Tile,
+                    npc.controller,
+                    npc.FacingDirection,
+                    npc.Sprite.CurrentAnimation is { } animation ? new List<FarmerSprite.AnimationFrame>(animation) : null,
+                    npc.Sprite.loop,
+                    npc.Sprite.CurrentFrame,
+                    npc.followSchedule);
+                captureMode = "new";
+            }
+
+            this.LogRoute(
+                npc,
+                "capture",
+                $"mode={captureMode}; origin={originalSpot.LocationName}@{this.FormatTile(originalSpot.Tile)}; originalFollowSchedule={originalSpot.FollowSchedule}; {this.DescribeNpcState(npc)}");
 
             // Cônjuges com "followSchedule" ativo recebem um desvio especial do próprio jogo sempre que saem
             // da Farmhouse por uma porta (o "handleWarps" força o destino pra "BusStop", ignorando a porta real
@@ -284,6 +318,8 @@ namespace NPCComeToMe
             npc.movementPause = int.MaxValue;
             this.SetFreezeMotion(npc, true);
             this.CapturedNpcs[npc] = originalSpot;
+
+            this.LogRoute(npc, "arrived", $"target={targetLocation.NameOrUniqueName}@{this.FormatTile(targetTile)}; {this.DescribeNpcState(npc)}");
 
             Game1.addHUDMessage(new HUDMessage(this.Helper.Translation.Get("message.npc-arrived", new { name = npc.displayName })));
         }
@@ -318,10 +354,15 @@ namespace NPCComeToMe
 
             string finalMessage = hudMessage ?? this.Helper.Translation.Get("message.npc-released", new { name = npc.displayName });
 
+            this.LogRoute(
+                npc,
+                "release",
+                $"destination={originalSpot.LocationName}@{this.FormatTile(originalSpot.Tile)}; restoreFollowSchedule={originalSpot.FollowSchedule}; {this.DescribeNpcState(npc)}");
+
             if (this.TryStartWalkingHome(npc, originalSpot, finalMessage))
                 return;
 
-            this.TeleportNpcHome(npc, originalSpot, finalMessage);
+            this.TeleportNpcHome(npc, originalSpot, finalMessage, "could not start the first route leg");
         }
 
         /// <summary>
@@ -336,25 +377,39 @@ namespace NPCComeToMe
         private bool TryStartWalkingHome(NPC npc, OriginalSpot originalSpot, string hudMessage)
         {
             GameLocation currentLocation = npc.currentLocation;
+            this.LogRoute(
+                npc,
+                "leg-start",
+                $"from={currentLocation.NameOrUniqueName}@{this.FormatTile(npc.Tile)}; destination={originalSpot.LocationName}@{this.FormatTile(originalSpot.Tile)}; {this.DescribeNpcState(npc)}");
+
             if (currentLocation.NameOrUniqueName == originalSpot.LocationName)
                 return this.TryWalkFinalLeg(npc, currentLocation, originalSpot, hudMessage);
 
             Point? exitTile = this.GetNextHopExitTile(npc, originalSpot.LocationName);
             if (exitTile is null)
+            {
+                this.LogRoute(npc, "leg-failed", $"no exit selected; availableExits={this.DescribeExits(currentLocation)}");
                 return false;
+            }
 
             Stack<Point> path = PathFindController.findPathForNPCSchedules(npc.TilePoint, exitTile.Value, currentLocation, 10000, npc);
             if (path is null || path.Count == 0)
+            {
+                this.LogRoute(npc, "leg-failed", $"no path to exit={this.FormatTile(exitTile.Value)}; availableExits={this.DescribeExits(currentLocation)}");
                 return false;
+            }
 
             npc.movementPause = 0;
             this.SetFreezeMotion(npc, false);
             npc.Sprite.StopAnimation(); // limpa qualquer animação customizada (ex: sentado) que travaria as pernas durante a caminhada
 
+            npc.followSchedule = false;
+            npc.temporaryController = null;
             npc.controller = new PathFindController(path, npc, currentLocation); // este construtor liga "NPCSchedule" sozinho
 
             int timeoutTicks = MinTicksWaitingToCrossMap + path.Count * ExtraTicksPerPathTile;
             this.WalkingHome[npc] = new PendingHomecoming(originalSpot, hudMessage, currentLocation.NameOrUniqueName, 0, timeoutTicks);
+            this.LogRoute(npc, "leg-walking", $"exit={this.FormatTile(exitTile.Value)}; pathTiles={path.Count}; timeoutTicks={timeoutTicks}; {this.DescribeNpcState(npc)}");
             return true;
         }
 
@@ -365,17 +420,26 @@ namespace NPCComeToMe
 
             Stack<Point> path = PathFindController.findPathForNPCSchedules(npc.TilePoint, targetTile, location, 10000, npc);
             if (path is null || path.Count == 0)
+            {
+                this.LogRoute(npc, "final-leg-failed", $"no path to destination={location.NameOrUniqueName}@{this.FormatTile(targetTile)}");
                 return false;
+            }
 
             npc.movementPause = 0;
             this.SetFreezeMotion(npc, false);
             npc.Sprite.StopAnimation(); // limpa qualquer animação customizada (ex: sentado) que travaria as pernas durante a caminhada
 
+            npc.followSchedule = false;
+            npc.temporaryController = null;
             npc.controller = new PathFindController(path, npc, location)
             {
                 finalFacingDirection = originalSpot.FacingDirection,
                 endBehaviorFunction = (c, l) => this.OnNpcFinishedWalkingHome(c as NPC, originalSpot, hudMessage)
             };
+
+            int timeoutTicks = MinTicksWaitingToCrossMap + path.Count * ExtraTicksPerPathTile;
+            this.WalkingHome[npc] = new PendingHomecoming(originalSpot, hudMessage, location.NameOrUniqueName, 0, timeoutTicks);
+            this.LogRoute(npc, "final-leg-walking", $"destination={location.NameOrUniqueName}@{this.FormatTile(targetTile)}; pathTiles={path.Count}; timeoutTicks={timeoutTicks}; {this.DescribeNpcState(npc)}");
             return true;
         }
 
@@ -383,16 +447,19 @@ namespace NPCComeToMe
         private void WalkFinalLegOrTeleport(NPC npc, OriginalSpot originalSpot, string hudMessage)
         {
             if (!this.TryWalkFinalLeg(npc, npc.currentLocation, originalSpot, hudMessage))
-                this.TeleportNpcHome(npc, originalSpot, hudMessage);
+                this.TeleportNpcHome(npc, originalSpot, hudMessage, "could not start the final route leg");
         }
 
         /// <summary>Teleporta o NPC direto pro local original e restaura o estado dele — usado quando não dá pra andar (sem caminho, sem porta, ou preso demais tempo na travessia).</summary>
-        private void TeleportNpcHome(NPC npc, OriginalSpot originalSpot, string hudMessage)
+        private void TeleportNpcHome(NPC npc, OriginalSpot originalSpot, string hudMessage, string reason)
         {
+            this.WalkingHome.Remove(npc);
+            this.LogRoute(npc, "safety-teleport", $"reason={reason}; destination={originalSpot.LocationName}@{this.FormatTile(originalSpot.Tile)}; {this.DescribeNpcState(npc)}");
             this.WarpNpcToExactTile(npc, originalSpot.LocationName, originalSpot.Tile);
             npc.movementPause = 0;
             this.SetFreezeMotion(npc, false);
             this.RestoreNpcPose(npc, originalSpot);
+            this.LogRoute(npc, "safety-teleport-complete", this.DescribeNpcState(npc));
             Game1.addHUDMessage(new HUDMessage(hudMessage));
         }
 
@@ -495,21 +562,36 @@ namespace NPCComeToMe
         {
             Point? direct = this.GetExitTileToward(npc, finalLocationName);
             if (direct != null)
+            {
+                this.LogRoute(npc, "exit-selected", $"mode=direct; targetMap={finalLocationName}; exit={this.FormatTile(direct.Value)}");
                 return direct;
+            }
 
             string[]? route = WarpPathfindingCache.GetLocationRoute(npc.currentLocation.NameOrUniqueName, finalLocationName, npc.Gender);
+            this.LogRoute(
+                npc,
+                "route-cache",
+                $"from={npc.currentLocation.NameOrUniqueName}; to={finalLocationName}; route={(route is null ? "<null>" : string.Join(" -> ", route))}; availableExits={this.DescribeExits(npc.currentLocation)}");
             if (route != null && route.Length >= 2)
             {
                 Point? viaRoute = this.GetExitTileToward(npc, route[1]);
                 if (viaRoute != null)
+                {
+                    this.LogRoute(npc, "exit-selected", $"mode=route-cache; nextMap={route[1]}; exit={this.FormatTile(viaRoute.Value)}");
                     return viaRoute;
+                }
             }
 
             Point? towardBusStop = this.GetExitTileToward(npc, "BusStop");
             if (towardBusStop != null)
+            {
+                this.LogRoute(npc, "exit-selected", $"mode=bus-stop-fallback; exit={this.FormatTile(towardBusStop.Value)}");
                 return towardBusStop;
+            }
 
-            return this.GetNearestExitTile(npc);
+            Point? nearest = this.GetNearestExitTile(npc);
+            this.LogRoute(npc, "exit-selected", $"mode=nearest-exit-fallback; exit={(nearest is null ? "<null>" : this.FormatTile(nearest.Value))}");
+            return nearest;
         }
 
         /// <summary>Acha, no local atual do NPC, o tile de saída (porta ou warp) mais próximo, seja qual for o destino dela.</summary>
@@ -536,8 +618,11 @@ namespace NPCComeToMe
             if (npc is null)
                 return;
 
+            this.WalkingHome.Remove(npc);
             npc.Halt();
+            this.LogRoute(npc, "finished", $"reached={npc.currentLocation.NameOrUniqueName}@{this.FormatTile(npc.Tile)}; restoring={originalSpot.LocationName}@{this.FormatTile(originalSpot.Tile)}; {this.DescribeNpcState(npc)}");
             this.RestoreNpcPose(npc, originalSpot);
+            this.LogRoute(npc, "restored", this.DescribeNpcState(npc));
 
             Game1.addHUDMessage(new HUDMessage(hudMessage));
         }
@@ -546,6 +631,45 @@ namespace NPCComeToMe
         private void SetFreezeMotion(NPC npc, bool frozen)
         {
             this.Helper.Reflection.GetField<bool>(npc, "freezeMotion").SetValue(frozen);
+        }
+
+        private void LogRoute(NPC npc, string eventName, string details)
+        {
+            this.Monitor.Log($"[route-debug:{npc.Name}:{eventName}] {details}", LogLevel.Info);
+        }
+
+        private string DescribeNpcState(NPC npc)
+        {
+            return $"map={npc.currentLocation?.NameOrUniqueName ?? "<null>"}; tile={this.FormatTile(npc.Tile)}; "
+                + $"followSchedule={npc.followSchedule}; daySchedule={npc.dayScheduleName.Value ?? "<null>"}; "
+                + $"controller={this.DescribeController(npc.controller)}; temporaryController={this.DescribeController(npc.temporaryController)}";
+        }
+
+        private string DescribeController(PathFindController? controller)
+        {
+            if (controller is null)
+                return "<null>";
+
+            string location = controller.location?.NameOrUniqueName ?? "<null>";
+            int pathTiles = controller.pathToEndPoint?.Count ?? -1;
+            return $"{controller.GetType().Name}(location={location},pathTiles={pathTiles},npcSchedule={controller.NPCSchedule})";
+        }
+
+        private string DescribeExits(GameLocation location)
+        {
+            IEnumerable<string> warps = location.warps.Select(w => $"warp:{w.TargetName}@({w.X},{w.Y})->({w.TargetX},{w.TargetY})");
+            IEnumerable<string> doors = location.doors.Pairs.Select(pair => $"door:{pair.Value}@{this.FormatTile(pair.Key)}");
+            return string.Join(", ", warps.Concat(doors));
+        }
+
+        private string FormatTile(Vector2 tile)
+        {
+            return $"({tile.X:0.##},{tile.Y:0.##})";
+        }
+
+        private string FormatTile(Point tile)
+        {
+            return $"({tile.X},{tile.Y})";
         }
 
         /// <summary>
