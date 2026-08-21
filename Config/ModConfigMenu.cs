@@ -18,7 +18,7 @@ namespace TileMarker.Config
             gmcm.Register(
                 mod: mod.ModManifest,
                 reset: () => mod.Config = new ModConfig(),
-                save: () => mod.Helper.WriteConfig(mod.Config)
+                save: mod.TryWriteConfig
             );
 
             gmcm.AddKeybindList(
