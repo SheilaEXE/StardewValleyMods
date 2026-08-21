@@ -9,7 +9,7 @@ using TileMarker.Core;
 
 namespace TileMarker
 {
-    public class ModEntry : Mod
+    public partial class ModEntry : Mod
     {
         internal ModConfig Config;
 
@@ -21,7 +21,7 @@ namespace TileMarker
 
         public override void Entry(IModHelper helper)
         {
-            Config = helper.ReadConfig<ModConfig>();
+            Config = ReadConfigSafely(helper);
             store = new MarkedTileStore(helper, Monitor);
 
             helper.Events.GameLoop.GameLaunched += OnGameLaunched;
