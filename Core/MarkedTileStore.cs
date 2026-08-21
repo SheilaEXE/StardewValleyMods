@@ -98,6 +98,13 @@ namespace TileMarker.Core
 
         public void LoadForCurrentSave()
         {
+            if (!Context.IsMainPlayer)
+            {
+                ClearLoadedData();
+                monitor.Log("[Tile Marker] A farmhand skipped direct save-data loading and is waiting for the host's tile snapshot.", LogLevel.Trace);
+                return;
+            }
+
             bool loadedImmediateData = false;
 
             try
@@ -230,6 +237,35 @@ namespace TileMarker.Core
             rangeViewCache.Clear();
         }
 
+        public Dictionary<string, Dictionary<string, Dictionary<string, List<string>>>> CreateSnapshot()
+        {
+            return CloneData(data);
+        }
+
+        public void ReplaceWithHostSnapshot(
+            Dictionary<string, Dictionary<string, Dictionary<string, List<string>>>> snapshot
+        )
+        {
+            var changedKeys = CollectStoredKeys(data);
+            data = CloneData(snapshot ?? new Dictionary<string, Dictionary<string, Dictionary<string, List<string>>>>());
+            int removedEntries = SanitizeLoadedData();
+            changedKeys.UnionWith(CollectStoredKeys(data));
+
+            expandedTileCache.Clear();
+            rangeViewCache.Clear();
+
+            if (removedEntries > 0)
+            {
+                monitor.Log(
+                    $"[Tile Marker] Ignored {removedEntries} invalid tile entr{(removedEntries == 1 ? "y" : "ies")} received from the host.",
+                    LogLevel.Warn
+                );
+            }
+
+            foreach (var key in changedKeys)
+                RaiseTileMarksChanged(key.OwnerModId, key.Category, key.LocationName);
+        }
+
         public IReadOnlyList<string> GetRanges(string ownerModId, string category, string locationName)
         {
             if (string.IsNullOrWhiteSpace(ownerModId)
@@ -332,6 +368,13 @@ namespace TileMarker.Core
             rangeViewCache.Remove(key);
             monitor.Log($"[Tile Marker] Saved {compressed.Count} range(s) immediately for {ownerModId}/{category}/{locationName}.", LogLevel.Trace);
 
+            RaiseTileMarksChanged(ownerModId, category, locationName);
+
+            return true;
+        }
+
+        private void RaiseTileMarksChanged(string ownerModId, string category, string locationName)
+        {
             var changeArgs = new TileMarksChangedEventArgs(ownerModId, category, locationName);
             Delegate[] subscribers = TileMarksChanged?.GetInvocationList() ?? Array.Empty<Delegate>();
             foreach (Delegate subscriber in subscribers)
@@ -345,8 +388,32 @@ namespace TileMarker.Core
                     monitor.Log($"[Tile Marker] A consuming mod failed while handling TileMarksChanged: {ex}", LogLevel.Warn);
                 }
             }
+        }
 
-            return true;
+        private static HashSet<(string OwnerModId, string Category, string LocationName)> CollectStoredKeys(
+            Dictionary<string, Dictionary<string, Dictionary<string, List<string>>>> source
+        )
+        {
+            var keys = new HashSet<(string OwnerModId, string Category, string LocationName)>();
+            if (source == null)
+                return keys;
+
+            foreach (var ownerPair in source)
+            {
+                if (ownerPair.Value == null)
+                    continue;
+
+                foreach (var categoryPair in ownerPair.Value)
+                {
+                    if (categoryPair.Value == null)
+                        continue;
+
+                    foreach (string locationName in categoryPair.Value.Keys)
+                        keys.Add((ownerPair.Key, categoryPair.Key, locationName));
+                }
+            }
+
+            return keys;
         }
 
         private void ApplyStoredRanges(string ownerModId, string category, string locationName, List<string> ranges)
