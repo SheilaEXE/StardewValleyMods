@@ -23,10 +23,13 @@ namespace TileMarker
         {
             Config = ReadConfigSafely(helper);
             store = new MarkedTileStore(helper, Monitor);
+            store.TileMarksChanged += OnTileMarksChangedForMultiplayer;
 
             helper.Events.GameLoop.GameLaunched += OnGameLaunched;
             helper.Events.GameLoop.SaveLoaded += OnSaveLoaded;
             helper.Events.GameLoop.ReturnedToTitle += OnReturnedToTitle;
+            helper.Events.Multiplayer.PeerConnected += OnPeerConnected;
+            helper.Events.Multiplayer.ModMessageReceived += OnModMessageReceived;
             helper.Events.Player.Warped += OnWarped;
             helper.Events.Input.ButtonPressed += OnButtonPressed;
             helper.Events.Input.CursorMoved += OnCursorMoved;
@@ -51,7 +54,16 @@ namespace TileMarker
 
         private void OnSaveLoaded(object sender, SaveLoadedEventArgs e)
         {
-            store.LoadForCurrentSave();
+            if (Context.IsMainPlayer)
+            {
+                store.LoadForCurrentSave();
+                SendTileSnapshot();
+            }
+            else
+            {
+                store.ClearLoadedData();
+                RequestTileSnapshotFromHost();
+            }
         }
 
         private void OnReturnedToTitle(object sender, ReturnedToTitleEventArgs e)
