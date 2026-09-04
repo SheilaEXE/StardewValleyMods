@@ -1,0 +1,17 @@
+# Build output
+bin/
+obj/
+
+# Local IDE settings
+.vs/
+.idea/
+*.user
+*.suo
+
+# Local mod configuration and credentials
+config.json
+.env
+.env.*
+
+# Packaged releases
+*.zip
