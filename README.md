@@ -1,16 +1,42 @@
 # Tile Marker
 
-Tile Marker lets players select map tiles visually inside Stardew Valley.
+Tile Marker is a small framework that lets players mark map tiles visually inside Stardew Valley,
+so they don't need to find coordinates or edit long lists in `config.json`.
 
-Your mod decides what those tiles mean. They can be no-spawn areas, special interaction zones,
-tiles that don't block vision, or anything else your mod needs. Tile Marker only provides the
-editor and stores the selections.
+Other mods decide what the marked tiles do. A tile can become a special interaction spot, a
+no-spawn area, a place that doesn't block vision, or anything else the integrating mod needs.
+Tile Marker provides the visual editor, saves the selections, and makes them available to those
+mods.
 
-The basic integration is:
+> **In short:** another mod registers a category, the player marks tiles in-game, and that mod uses
+> the saved selection.
 
-> Register a category → open the editor → check the selected tiles.
+## For players
 
-## Quick start for mod authors
+You only see categories added by mods that support Tile Marker.
+
+1. Open Tile Marker's configuration in Generic Mod Config Menu and choose the **Open tile editor**
+   key.
+2. Press that key in-game and choose what you want to mark.
+3. Click or drag over the map tiles, then press `Esc` to save.
+4. Use the integrating mod normally. It will read the tiles you selected.
+
+The host edits and saves selections in multiplayer. Connected farmhands receive the host's saved
+tiles automatically.
+
+## For mod authors
+
+Tile Marker supports two integration styles:
+
+| Your mod | Recommended integration | What you can do |
+| --- | --- | --- |
+| SMAPI mod with a DLL | [C# API](#c-api-quick-start) | Register categories, open the editor, query tiles, and react immediately to changes. |
+| JSON-only content pack | [Content Patcher](#content-patcher-only-integration) | Register categories, run trigger actions on marked tiles, and query selections through tokens. |
+
+Both options use the same editor and saved-tile system. A content pack doesn't need its own DLL,
+and adding Content Patcher support doesn't change the existing C# API.
+
+## C# API quick start
 
 ### 1. Copy the API contract into your project
 
