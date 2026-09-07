@@ -5,6 +5,7 @@ using StardewModdingAPI.Events;
 using StardewValley;
 using TileMarker.Api;
 using TileMarker.Config;
+using TileMarker.ContentPatcherInterop;
 using TileMarker.Core;
 
 namespace TileMarker
@@ -16,6 +17,7 @@ namespace TileMarker
         private MarkedTileStore store;
         private EditorSession editor;
         private TileMarkerApi api;
+        private ContentPatcherIntegration contentPatcherIntegration;
         private bool wasGameWindowActive = true;
         private SButton? activeDragButton;
 
@@ -24,6 +26,12 @@ namespace TileMarker
             Config = ReadConfigSafely(helper);
             store = new MarkedTileStore(helper, Monitor);
             store.TileMarksChanged += OnTileMarksChangedForMultiplayer;
+            contentPatcherIntegration = new ContentPatcherIntegration(
+                helper,
+                Monitor,
+                ModManifest,
+                store,
+                () => Config?.MergeCompatibleCategories == true);
 
             helper.Events.GameLoop.GameLaunched += OnGameLaunched;
             helper.Events.GameLoop.SaveLoaded += OnSaveLoaded;
@@ -36,6 +44,8 @@ namespace TileMarker
             helper.Events.Display.RenderedWorld += OnRenderedWorld;
             helper.Events.Display.MenuChanged += OnMenuChanged;
             helper.Events.GameLoop.UpdateTicked += OnUpdateTicked;
+            helper.Events.Content.AssetRequested += contentPatcherIntegration.OnAssetRequested;
+            helper.Events.Content.AssetsInvalidated += contentPatcherIntegration.OnAssetsInvalidated;
         }
 
         public override object GetApi()
@@ -50,6 +60,8 @@ namespace TileMarker
             var gmcm = Helper.ModRegistry.GetApi<IGenericModConfigMenuApi>("spacechase0.GenericModConfigMenu");
             if (gmcm != null)
                 ModConfigMenu.Register(this, gmcm);
+
+            contentPatcherIntegration.Initialize();
         }
 
         private void OnSaveLoaded(object sender, SaveLoadedEventArgs e)
@@ -124,7 +136,10 @@ namespace TileMarker
             }
 
             if (editor == null || !editor.IsActive)
+            {
+                contentPatcherIntegration.TryHandleButton(e.Button);
                 return;
+            }
 
             if (e.Button == SButton.Escape)
             {

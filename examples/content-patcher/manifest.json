@@ -1,0 +1,19 @@
+{
+  "Name": "Tile Marker Content Patcher Example",
+  "Author": "ExampleAuthor",
+  "Version": "1.0.0",
+  "Description": "Example of a JSON-only Tile Marker category and interaction.",
+  "UniqueID": "ExampleAuthor.TileMarkerContentPack",
+  "MinimumApiVersion": "4.0.0",
+  "ContentPackFor": {
+    "UniqueID": "Pathoschild.ContentPatcher",
+    "MinimumVersion": "2.9.0"
+  },
+  "Dependencies": [
+    {
+      "UniqueID": "NatrollEXE.TileMarker",
+      "MinimumVersion": "1.1.0",
+      "IsRequired": true
+    }
+  ]
+}
