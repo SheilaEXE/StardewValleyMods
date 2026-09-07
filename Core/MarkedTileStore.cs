@@ -27,6 +27,10 @@ namespace TileMarker.Core
         // consuming mods re-register every GameLaunched.
         public List<(string OwnerModId, string Category, string DisplayName)> RegisteredCategories { get; } = new();
         private readonly Dictionary<(string OwnerModId, string Category), string> sharedGroups = new();
+        private readonly Dictionary<(string OwnerModId, string Category), string> registrationSources = new();
+
+        /// <summary>Changes whenever registrations or marked-tile data change.</summary>
+        internal long Revision { get; private set; }
 
         public event EventHandler<TileMarksChangedEventArgs> TileMarksChanged;
 
@@ -38,19 +42,63 @@ namespace TileMarker.Core
 
         public bool Register(string ownerModId, string category, string displayName, string sharedGroup = null)
         {
+            return Register(ownerModId, category, displayName, sharedGroup, "Api", replaceOtherSources: true);
+        }
+
+        internal bool RegisterFromContentPatcher(string ownerModId, string category, string displayName, string sharedGroup = null)
+        {
+            return Register(ownerModId, category, displayName, sharedGroup, "ContentPatcher", replaceOtherSources: false);
+        }
+
+        private bool Register(
+            string ownerModId,
+            string category,
+            string displayName,
+            string sharedGroup,
+            string source,
+            bool replaceOtherSources)
+        {
             if (string.IsNullOrWhiteSpace(ownerModId) || string.IsNullOrWhiteSpace(category))
                 return false;
+
+            ownerModId = ownerModId.Trim();
+            category = category.Trim();
+            var key = (ownerModId, category);
+
+            if (!replaceOtherSources
+                && registrationSources.TryGetValue(key, out string existingSource)
+                && !string.Equals(existingSource, source, StringComparison.Ordinal))
+            {
+                return false;
+            }
 
             RegisteredCategories.RemoveAll(r => r.OwnerModId == ownerModId && r.Category == category);
             RegisteredCategories.Add((ownerModId, category, string.IsNullOrWhiteSpace(displayName) ? category : displayName));
 
-            var key = (ownerModId, category);
             if (string.IsNullOrWhiteSpace(sharedGroup))
                 sharedGroups.Remove(key);
             else
                 sharedGroups[key] = sharedGroup.Trim();
 
+            registrationSources[key] = source;
+            Touch();
+
             return true;
+        }
+
+        internal void UnregisterContentPatcherCategory(string ownerModId, string category)
+        {
+            var key = (ownerModId, category);
+            if (!registrationSources.TryGetValue(key, out string source)
+                || !string.Equals(source, "ContentPatcher", StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            RegisteredCategories.RemoveAll(r => r.OwnerModId == ownerModId && r.Category == category);
+            registrationSources.Remove(key);
+            sharedGroups.Remove(key);
+            Touch();
         }
 
         public IReadOnlyList<(string OwnerModId, string Category)> GetCompatibleCategories(string ownerModId, string category)
@@ -165,6 +213,7 @@ namespace TileMarker.Core
 
             expandedTileCache.Clear();
             rangeViewCache.Clear();
+            Touch();
         }
 
         private int SanitizeLoadedData()
@@ -235,6 +284,7 @@ namespace TileMarker.Core
             data = new Dictionary<string, Dictionary<string, Dictionary<string, List<string>>>>();
             expandedTileCache.Clear();
             rangeViewCache.Clear();
+            Touch();
         }
 
         public Dictionary<string, Dictionary<string, Dictionary<string, List<string>>>> CreateSnapshot()
@@ -253,6 +303,7 @@ namespace TileMarker.Core
 
             expandedTileCache.Clear();
             rangeViewCache.Clear();
+            Touch();
 
             if (removedEntries > 0)
             {
@@ -366,11 +417,20 @@ namespace TileMarker.Core
 
             expandedTileCache[key] = savedTiles;
             rangeViewCache.Remove(key);
+            Touch();
             monitor.Log($"[Tile Marker] Saved {compressed.Count} range(s) immediately for {ownerModId}/{category}/{locationName}.", LogLevel.Trace);
 
             RaiseTileMarksChanged(ownerModId, category, locationName);
 
             return true;
+        }
+
+        private void Touch()
+        {
+            unchecked
+            {
+                Revision++;
+            }
         }
 
         private void RaiseTileMarksChanged(string ownerModId, string category, string locationName)

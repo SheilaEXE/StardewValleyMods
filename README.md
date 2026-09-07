@@ -201,6 +201,110 @@ behavior when the API isn't available.
 For example, a mod may continue accepting manually written coordinates in its own `config.json`,
 while Tile Marker gives players an easier visual way to create or update the same data.
 
+## Content Patcher-only integration
+
+Content packs can register categories and add interactions without shipping a DLL. This bridge is
+optional: the existing C# API, editor, save format, and multiplayer synchronization don't depend on
+Content Patcher.
+
+Add Tile Marker as a dependency in the content pack's `manifest.json`:
+
+```json
+"Dependencies": [
+  {
+    "UniqueID": "NatrollEXE.TileMarker",
+    "MinimumVersion": "1.1.0",
+    "IsRequired": true
+  }
+]
+```
+
+Then add a category to `Mods/NatrollEXE.TileMarker/Categories`. The entry key must use
+`OwnerModId/Category`; `{{ModId}}` supplies the content pack's own unique ID:
+
+The interaction button should belong to the content pack's own `ConfigSchema`, for example:
+
+```json
+"ConfigSchema": {
+  "WaterSinkButton": {
+    "Default": "F"
+  }
+}
+```
+
+Pass that config token to Tile Marker in the category entry:
+
+```json
+{
+  "Action": "EditData",
+  "Target": "Mods/NatrollEXE.TileMarker/Categories",
+  "Entries": {
+    "{{ModId}}/WaterSources": {
+      "DisplayName": "Water sources",
+      "Interaction": {
+        "Button": "{{WaterSinkButton}}",
+        "Target": "Facing",
+        "SuppressButton": true,
+        "Actions": [
+          "AddItem (O)YourName.YourItem 1"
+        ]
+      }
+    }
+  }
+}
+```
+
+The category appears in Tile Marker's existing picker. After the player marks tiles, pressing the
+configured interaction button on the chosen target runs the trigger actions in order.
+
+### Category fields
+
+| Field | Required | Meaning |
+| --- | --- | --- |
+| `DisplayName` | no | Text shown in the category picker; defaults to the category ID. Supports Content Patcher tokens like `{{i18n:key}}`. |
+| `SharedGroup` | no | Stable group ID used by Tile Marker's existing merge-compatible-categories option. |
+| `Interaction` | no | Omit this when the pack only needs the category and query tokens. |
+| `Interaction.Button` | no | `Action`, `UseTool`, or a SMAPI keybind string such as `F` or `LeftShift + F`. Defaults to `Action`. This can use a config token owned by the content pack, such as `{{WaterSinkButton}}`; Tile Marker only reads the resolved value. |
+| `Interaction.Target` | no | `Facing`, `Standing`, or `Cursor`. Defaults to `Facing`. |
+| `Interaction.Actions` | yes, for interactions | One or more Stardew 1.6 trigger action strings. |
+| `Interaction.SuppressButton` | no | Suppress the original button after an action succeeds. Defaults to `true`. |
+
+Interaction actions can use these runtime placeholders, which Tile Marker replaces immediately
+before running the action:
+
+| Placeholder | Value |
+| --- | --- |
+| `{TileX}` / `{TileY}` | The marked target tile coordinates. |
+| `{LocationName}` | The current location's base name. |
+| `{LocationUniqueName}` | The current location's unique name. |
+| `{PlayerId}` | The current player's multiplayer ID. |
+
+These use single braces intentionally, so they don't conflict with Content Patcher tokens.
+
+### Content Patcher tokens
+
+Tile Marker provides two tokens. Both use the same owner/category IDs as the category entry:
+
+```json
+"When": {
+  "NatrollEXE.TileMarker/IsTileMarked:{{ModId}},WaterSources,{{LocationUniqueName}},5,8": "true"
+}
+```
+
+`IsTileMarked` accepts `OwnerModId, Category, LocationName, X, Y` and returns `true` or `false`.
+
+`MarkedTiles` accepts `OwnerModId, Category, LocationName` and returns every marked tile as an
+`X_Y` value, such as `5_8`. The underscore avoids Content Patcher treating the coordinate comma as
+a separator:
+
+```json
+"When": {
+  "NatrollEXE.TileMarker/MarkedTiles:{{ModId}},WaterSources,{{LocationUniqueName}}": "5_8"
+}
+```
+
+See [`examples/content-patcher`](examples/content-patcher) for a complete JSON-only example.
+
 ## Player controls
 
 These controls apply only while the tile editor is open:

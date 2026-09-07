@@ -1,0 +1,28 @@
+{
+  "Format": "2.9.0",
+  "ConfigSchema": {
+    "InteractionButton": {
+      "Default": "F"
+    }
+  },
+  "Changes": [
+    {
+      "LogName": "Register example marked-tile interaction",
+      "Action": "EditData",
+      "Target": "Mods/NatrollEXE.TileMarker/Categories",
+      "Entries": {
+        "{{ModId}}/ExampleInteraction": {
+          "DisplayName": "Example interaction tiles",
+          "Interaction": {
+            "Button": "{{InteractionButton}}",
+            "Target": "Facing",
+            "SuppressButton": true,
+            "Actions": [
+              "AddItem (O)388 1"
+            ]
+          }
+        }
+      }
+    }
+  ]
+}
