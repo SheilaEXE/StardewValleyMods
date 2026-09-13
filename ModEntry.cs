@@ -3,6 +3,7 @@ using Microsoft.Xna.Framework;
 using StardewModdingAPI;
 using StardewModdingAPI.Events;
 using StardewValley;
+using StardewValley.Triggers;
 using TileMarker.Api;
 using TileMarker.Config;
 using TileMarker.ContentPatcherInterop;
@@ -23,6 +24,10 @@ namespace TileMarker
 
         public override void Entry(IModHelper helper)
         {
+            TriggerActionManager.RegisterAction(
+                MapActionTrigger.ActionName,
+                MapActionTrigger.PerformMapAction);
+
             Config = ReadConfigSafely(helper);
             store = new MarkedTileStore(helper, Monitor);
             store.TileMarksChanged += OnTileMarksChangedForMultiplayer;

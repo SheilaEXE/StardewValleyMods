@@ -239,7 +239,7 @@ Add Tile Marker as a dependency in the content pack's `manifest.json`:
 "Dependencies": [
   {
     "UniqueID": "NatrollEXE.TileMarker",
-    "MinimumVersion": "1.1.0",
+    "MinimumVersion": "1.0.0",
     "IsRequired": true
   }
 ]
@@ -306,6 +306,21 @@ before running the action:
 | `{PlayerId}` | The current player's multiplayer ID. |
 
 These use single braces intentionally, so they don't conflict with Content Patcher tokens.
+
+### Run a normal map action
+
+Tile Marker 1.0.0 includes a trigger action for Content Patcher packs which need the marked tile to
+behave like a normal map tile action:
+
+```json
+"Actions": [
+  "NatrollEXE.TileMarker_PerformMapAction {TileX} {TileY} Kitchen"
+]
+```
+
+The format is `NatrollEXE.TileMarker_PerformMapAction <tile X> <tile Y> <map action>`. For example,
+`Kitchen` follows the game's normal kitchen activation path, so mods which replace the vanilla
+cooking menu can handle it as usual.
 
 ### Content Patcher tokens
 
