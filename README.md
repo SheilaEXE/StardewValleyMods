@@ -239,7 +239,7 @@ Add Tile Marker as a dependency in the content pack's `manifest.json`:
 "Dependencies": [
   {
     "UniqueID": "NatrollEXE.TileMarker",
-    "MinimumVersion": "1.0.0",
+    "MinimumVersion": "1.1.0",
     "IsRequired": true
   }
 ]
@@ -309,7 +309,7 @@ These use single braces intentionally, so they don't conflict with Content Patch
 
 ### Run a normal map action
 
-Tile Marker 1.0.0 includes a trigger action for Content Patcher packs which need the marked tile to
+Tile Marker 1.1.0 includes a trigger action for Content Patcher packs which need the marked tile to
 behave like a normal map tile action:
 
 ```json
