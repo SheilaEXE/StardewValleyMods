@@ -3,7 +3,7 @@ using StardewModdingAPI;
 namespace AllRecipesForSale;
 
 /// <summary>The subset of the Generic Mod Config Menu API used by this mod.</summary>
-internal interface IGenericModConfigMenuApi
+public interface IGenericModConfigMenuApi
 {
     void Register(IManifest mod, Action reset, Action save, bool titleScreenOnly = false);
 

@@ -1,7 +1,7 @@
 {
   "Name": "All Recipes for Sale!",
   "Author": "Sheila",
-  "Version": "1.1.0",
+  "Version": "1.1.1",
   "Description": "Adds every unknown cooking recipe, including recipes from compatible mods, to Gus's shop.",
   "UniqueID": "Sheila.AllRecipesForSale",
   "EntryDll": "AllRecipesForSale.dll",
