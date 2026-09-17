@@ -1,1 +1,4 @@
-{}
+{
+  "config.enabled.name": "Ativar mod",
+  "config.enabled.tooltip": "Quando ativado, adiciona todas as receitas culinárias ainda não aprendidas à loja do Gus. Feche e abra a loja novamente após alterar esta opção."
+}

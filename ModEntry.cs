@@ -19,8 +19,37 @@ internal sealed class ModEntry : Mod
         this.Config = helper.ReadConfig<ModConfig>();
         this.Config.RecipePrice = Math.Max(0, this.Config.RecipePrice);
 
+        helper.Events.GameLoop.GameLaunched += this.OnGameLaunched;
         helper.Events.Content.AssetRequested += this.OnAssetRequested;
         helper.Events.Content.AssetsInvalidated += this.OnAssetsInvalidated;
+    }
+
+    private void OnGameLaunched(object? sender, GameLaunchedEventArgs e)
+    {
+        IGenericModConfigMenuApi? configMenu =
+            this.Helper.ModRegistry.GetApi<IGenericModConfigMenuApi>("spacechase0.GenericModConfigMenu");
+        if (configMenu is null)
+            return;
+
+        configMenu.Register(
+            this.ModManifest,
+            reset: () => this.Config = new ModConfig(),
+            save: () =>
+            {
+                this.Config.RecipePrice = Math.Max(0, this.Config.RecipePrice);
+                this.Helper.WriteConfig(this.Config);
+                this.Helper.GameContent.InvalidateCache(ShopsAsset);
+            }
+        );
+
+        configMenu.AddBoolOption(
+            this.ModManifest,
+            getValue: () => this.Config.Enabled,
+            setValue: value => this.Config.Enabled = value,
+            name: () => this.Helper.Translation.Get("config.enabled.name"),
+            tooltip: () => this.Helper.Translation.Get("config.enabled.tooltip"),
+            fieldId: "Enabled"
+        );
     }
 
     private void OnAssetRequested(object? sender, AssetRequestedEventArgs e)
@@ -30,6 +59,9 @@ internal sealed class ModEntry : Mod
 
         e.Edit(asset =>
         {
+            if (!this.Config.Enabled)
+                return;
+
             IDictionary<string, ShopData> shops = asset.AsDictionary<string, ShopData>().Data;
             if (!shops.TryGetValue(SaloonShopId, out ShopData? saloon))
             {
