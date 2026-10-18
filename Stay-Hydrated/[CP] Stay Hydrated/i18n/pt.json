@@ -1,0 +1,8 @@
+{
+  "item.water-cup.name": "Copo com Água Gelada",
+  "item.water-cup.description": "Um copo de água bem gelada. Simples, refrescante e revigorante.",
+  "item.water-bottle.name": "Garrafa com Água Gelada",
+  "item.water-bottle.description": "Uma garrafa de água bem gelada. Perfeita para se refrescar em dias quentes.",
+  "buff.hydrated.description": "Que refrescante!",
+  "tile-marker.water-sinks": "Pias do Stay Hydrated!"
+}

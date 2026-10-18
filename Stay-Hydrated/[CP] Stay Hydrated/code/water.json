@@ -1,0 +1,119 @@
+{
+  "Changes": [
+    {
+      "Action": "EditData",
+      "Target": "Data/Objects",
+      "Entries": {
+        "SiL.IcedWaterCup": {
+          "Name": "IcedWaterCup",
+          "DisplayName": "{{i18n:item.water-cup.name}}",
+          "Description": "{{i18n:item.water-cup.description}}",
+          "Type": "Cooking",
+          "Category": -7,
+          "Price": 80,
+          "Texture": "Mods/NatrollEXE.StayHydrated.ContentPack/Water",
+          "SpriteIndex": 0,
+          "Edibility": 10,
+          "IsDrink": true
+        },
+        "SiL.IcedWaterBottle": {
+          "Name": "IcedWaterBottle",
+          "DisplayName": "{{i18n:item.water-bottle.name}}",
+          "Description": "{{i18n:item.water-bottle.description}}",
+          "Type": "Cooking",
+          "Category": -7,
+          "Price": 120,
+          "Texture": "Mods/NatrollEXE.StayHydrated.ContentPack/Water",
+          "SpriteIndex": 1,
+          "Edibility": 25,
+          "IsDrink": true
+        }
+      }
+    },
+    {
+      "Action": "Load",
+      "Target": "Mods/NatrollEXE.StayHydrated.ContentPack/Water",
+      "FromFile": "assets/Water.png"
+    },
+    {
+      "Action": "Load",
+      "Target": "Mods/NatrollEXE.StayHydrated.ContentPack/BuffWater",
+      "FromFile": "assets/BuffWater.png"
+    },
+    {
+      "Action": "EditData",
+      "Target": "Data/Buffs",
+      "Entries": {
+        "NatrollEXE.StayHydrated_Cup": {
+          "Description": "{{i18n:buff.hydrated.description}}",
+          "IsDebuff": false,
+          "Duration": 120000,
+          "MaxDuration": -1,
+          "IconTexture": "Mods/NatrollEXE.StayHydrated.ContentPack/BuffWater",
+          "IconSpriteIndex": 0,
+          "Effects": null
+        },
+        "NatrollEXE.StayHydrated_Bottle": {
+          "Description": "{{i18n:buff.hydrated.description}}",
+          "IsDebuff": false,
+          "Duration": 240000,
+          "MaxDuration": -1,
+          "IconTexture": "Mods/NatrollEXE.StayHydrated.ContentPack/BuffWater",
+          "IconSpriteIndex": 0,
+          "Effects": null
+        }
+      }
+    },
+    {
+      "LogName": "Hydration buffs during Weather Wonders heatwaves",
+      "Action": "EditData",
+      "Target": "Data/Objects",
+      "Fields": {
+        "SiL.IcedWaterCup": {
+          "Buffs": [
+            {
+              "Id": "Drink",
+              "BuffId": "NatrollEXE.StayHydrated_Cup"
+            }
+          ]
+        },
+        "SiL.IcedWaterBottle": {
+          "Buffs": [
+            {
+              "Id": "Drink",
+              "BuffId": "NatrollEXE.StayHydrated_Bottle"
+            }
+          ]
+        }
+      },
+      "When": {
+        "HasMod": "Kana.WeatherWonders",
+        "Weather": "Kana.WeatherWonders_Heatwave"
+      }
+    },
+    {
+      "Action": "EditData",
+      "Target": "Data/Shops",
+      "TargetField": [ "SeedShop", "Items" ],
+      "Entries": {
+        "NatrollEXE_StayHydrated_IcedWaterBottle_Pierre": {
+          "Id": "NatrollEXE_StayHydrated_IcedWaterBottle_Pierre",
+          "ItemId": "(O)SiL.IcedWaterBottle",
+          "Price": 50
+        }
+      }
+    },
+    {
+      "Action": "EditData",
+      "Target": "Data/Shops",
+      "TargetField": [ "Saloon", "Items" ],
+      "Entries": {
+        "NatrollEXE_StayHydrated_IcedWaterBottle_Gus": {
+          "Id": "NatrollEXE_StayHydrated_IcedWaterBottle_Gus",
+          "ItemId": "(O)SiL.IcedWaterBottle",
+          "Price": 50
+        }
+      }
+    }
+  ]
+}

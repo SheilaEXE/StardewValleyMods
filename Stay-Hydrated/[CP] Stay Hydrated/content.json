@@ -1,0 +1,28 @@
+{
+  "Format": "2.9.0",
+  "Changes": [
+    {
+      "LogName": "Water drinks, shops, and hydration buffs",
+      "Action": "Include",
+      "FromFile": "code/water.json"
+    },
+    {
+      "LogName": "Sinks for collecting water",
+      "Action": "EditData",
+      "Target": "Mods/NatrollEXE.TileMarker/Categories",
+      "Entries": {
+        "NatrollEXE.StayHydrated/WaterSinks": {
+          "DisplayName": "{{i18n:tile-marker.water-sinks}}",
+          "Interaction": {
+            "Button": "{{NatrollEXE.StayHydrated/WaterSinkButton}}",
+            "Target": "Facing",
+            "SuppressButton": true,
+            "Actions": [
+              "AddItem (O)SiL.IcedWaterCup 1"
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

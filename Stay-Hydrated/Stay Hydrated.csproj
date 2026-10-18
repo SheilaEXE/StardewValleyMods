@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>StayHydrated</AssemblyName>
+    <RootNamespace>StayHydrated</RootNamespace>
+    <Version>1.0.0</Version>
+    <Nullable>enable</Nullable>
+    <TargetFramework>net6.0</TargetFramework>
+    <EnableHarmony>true</EnableHarmony>
+    <EnableModDeploy>false</EnableModDeploy>
+    <EnableModZip>false</EnableModZip>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Pathoschild.Stardew.ModBuildConfig" Version="4.4.0" />
+  </ItemGroup>
+
+  <Target Name="CopyModToStardewMods" AfterTargets="Build">
+    <PropertyGroup>
+      <StardewModsDir Condition="'$(StardewModsDir)' == ''">C:\Program Files (x86)\Steam\steamapps\common\Stardew Valley\Mods\</StardewModsDir>
+      <ModRootDir>$(StardewModsDir)Stay Hydrated\</ModRootDir>
+      <ModDeployDir>$(ModRootDir)Stay Hydrated\</ModDeployDir>
+      <ContentPackDeployDir>$(ModRootDir)[CP] Stay Hydrated\</ContentPackDeployDir>
+    </PropertyGroup>
+
+    <MakeDir Directories="$(ModDeployDir);$(ContentPackDeployDir)" />
+
+    <Copy SourceFiles="$(TargetPath)" DestinationFiles="$(ModDeployDir)$(TargetFileName)" />
+    <Copy SourceFiles="$(TargetDir)$(AssemblyName).pdb" DestinationFiles="$(ModDeployDir)$(AssemblyName).pdb" Condition="Exists('$(TargetDir)$(AssemblyName).pdb')" />
+    <Copy SourceFiles="manifest.json" DestinationFiles="$(ModDeployDir)manifest.json" />
+
+    <ItemGroup>
+      <TranslationFiles Include="i18n\**\*.json" />
+      <ContentPackFiles Include="[CP] Stay Hydrated\**\*" />
+    </ItemGroup>
+
+    <Copy SourceFiles="@(TranslationFiles)" DestinationFiles="@(TranslationFiles->'$(ModDeployDir)i18n\%(RecursiveDir)%(Filename)%(Extension)')" />
+    <Copy SourceFiles="@(ContentPackFiles)" DestinationFiles="@(ContentPackFiles->'$(ContentPackDeployDir)%(RecursiveDir)%(Filename)%(Extension)')" />
+  </Target>
+</Project>

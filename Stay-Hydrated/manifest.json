@@ -1,0 +1,24 @@
+{
+  "Name": "Stay Hydrated!",
+  "Author": "NatrollEXE",
+  "Version": "1.0.0",
+  "Description": "Adds refreshing water drinks, refillable sinks, and optional heatwave protection.",
+  "UniqueID": "NatrollEXE.StayHydrated",
+  "EntryDll": "StayHydrated.dll",
+  "MinimumApiVersion": "4.0.0",
+  "UpdateKeys": [],
+  "Dependencies": [
+    {
+      "UniqueID": "Pathoschild.ContentPatcher",
+      "IsRequired": true
+    },
+    {
+      "UniqueID": "spacechase0.GenericModConfigMenu",
+      "IsRequired": false
+    },
+    {
+      "UniqueID": "Kana.WeatherWonders",
+      "IsRequired": false
+    }
+  ]
+}
