@@ -78,4 +78,4 @@ Delete the entire old **Fashion Sense Outfit Preview** folder before installing 
 
 - [Nexus Mods page](https://www.nexusmods.com/stardewvalley/mods/45911)
 - [Fashion Sense](https://www.nexusmods.com/stardewvalley/mods/9969)
-- [Source code](https://github.com/SheilaEXE/Fashion-Sense-Wardrobe-Manager)
+- [Source code](https://github.com/SheilaEXE/StardewValleyMods/tree/main/Fashion-Sense-Wardrobe-Manager)
