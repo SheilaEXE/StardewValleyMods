@@ -1,0 +1,4 @@
+{
+  "config.enabled.name": "Enable mod",
+  "config.enabled.tooltip": "When enabled, adds every unknown cooking recipe to Gus's shop. Close and reopen the shop after changing this option."
+}
