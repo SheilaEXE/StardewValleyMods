@@ -1,0 +1,21 @@
+{
+  "Name": "Cooking Anywhere",
+  "Author": "NatrollEXE",
+  "Version": "1.0.0",
+  "Description": "Turn any marked tile into a cooking spot.",
+  "UniqueID": "NatrollEXE.CookingAnywhere",
+  "MinimumApiVersion": "4.0.0",
+  "ContentPackFor": {
+    "UniqueID": "Pathoschild.ContentPatcher",
+    "MinimumVersion": "2.9.0"
+  },
+  "Dependencies": [
+    {
+      "UniqueID": "NatrollEXE.TileMarker",
+      "MinimumVersion": "1.1.0"
+    }
+  ],
+  "UpdateKeys": [
+    "Nexus:52298"
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "Format": "2.9.0",
+  "Changes": [
+    {
+      "Action": "EditData",
+      "Target": "Mods/NatrollEXE.TileMarker/Categories",
+      "Entries": {
+        "{{ModId}}/CookingSpots": {
+          "DisplayName": "{{i18n:tile-marker.cooking-spots}}",
+          "Interaction": {
+            "Button": "Action",
+            "Target": "Facing",
+            "SuppressButton": true,
+            "Actions": [
+              "NatrollEXE.TileMarker_PerformMapAction {TileX} {TileY} Kitchen"
+            ]
+          }
+        }
+      }
+    }
+  ]
+}
