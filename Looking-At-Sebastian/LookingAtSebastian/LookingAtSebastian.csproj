@@ -1,0 +1,16 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net6.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<AssemblyName>LookingAtSebastian</AssemblyName>
+		<ModFolderName>Looking at Sebastian</ModFolderName>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Lib.Harmony" Version="2.4.2" PrivateAssets="all" />
+		<PackageReference Include="Pathoschild.Stardew.ModBuildConfig" Version="4.4.0" PrivateAssets="all" />
+	</ItemGroup>
+
+</Project>

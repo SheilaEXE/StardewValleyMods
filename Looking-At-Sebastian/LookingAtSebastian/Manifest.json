@@ -1,0 +1,10 @@
+﻿{
+  "Name": "Looking at Sebastian",
+  "Author": "NatrollEXE",
+  "Version": "1.0.0",
+  "Description": "Adds unique reactions and special dialogue for Sebastian when you stare at him a little too long.",
+  "UniqueID": "NatrollEXE.LookingAtSebastian",
+  "EntryDll": "LookingAtSebastian.dll",
+  "MinimumApiVersion": "4.0.0",
+  "UpdateKeys": []
+}

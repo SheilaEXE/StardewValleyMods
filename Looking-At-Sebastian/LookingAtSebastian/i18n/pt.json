@@ -1,0 +1,317 @@
+{
+
+//2 CORAÇÕES - ENCARANDO DE PERTO
+
+
+//SEB DE LADO
+
+  "preDatingCloseSide2.Sebastian.1": "Você... tá me encarando. Não que eu me importe... eu acho.#$b#É que você tá me encarando de um jeito meio difícil de ignorar.$s",
+  "preDatingCloseSide2.Sebastian.2": "E-eu não esperava você olhar pra mim desse jeito.#$b#Você... precisa de alguma coisa?$s",
+  "preDatingCloseSide2.Sebastian.3": "Você tá olhando pra mim faz tempo.#$b#Eu devia ficar preocupado ou isso é normal pra você?$28",
+  "preDatingCloseSide2.Sebastian.4": "Ahm... tem algo de errado comigo?#$b#Eu sei que sou estranho, mas é que você tá me encarando demais.$28",
+  "preDatingCloseSide2.Sebastian.5": "Tem alguma coisa no meu rosto? Ou você só... gosta de encarar as pessoas assim mesmo?$s",
+  "preDatingCloseSide2.Sebastian.6": "Você tá me encarando muito... e-eu tô fazendo alguma coisa estranha?#$b#Quer dizer, mais estranha que o normal?$s",
+  "preDatingCloseSide2.Sebastian.7": "Uh... eu não sou muito bom com esse tipo de coisa... ficar sendo observado assim, quero dizer.$s",
+  "preDatingCloseSide2.Sebastian.8": "Eu, uh... eu não sou a pessoa mais sociável daqui...#$b#E ficar me encarando assim está me deixando meio nervoso.$s",
+  "preDatingCloseSide2.Sebastian.9": "Ok, você tá me encarando muito.#$b#Se tem alguma coisa estranha em mim, pode falar. Ou... não.#$b#Talvez eu prefira não saber.$s",
+  "preDatingCloseSide2.Sebastian.10": "Tem... algum motivo pra você estar me encarando tanto assim?#$b#Só pra eu saber se devo fingir normalidade ou não.$28",
+
+//SEB DE COSTAS
+
+  "preDatingCloseBack2.Sebastian.1": "Que susto... o que você tá fazendo aí atrás de mim?$13#$b#Eu não sou exatamente bom com pessoas aparecendo do nada assim.$s",
+  "preDatingCloseBack2.Sebastian.2": "Yoba, que susto!$13#$b#Você sempre aparece assim atrás das pessoas, sem fazer barulho?$s",
+  "preDatingCloseBack2.Sebastian.3": "V-Você tava aí? Podia ter dito alguma coisa.#$b#Ficar parada atrás de mim é meio... constrangedor.$s",
+  "preDatingCloseBack2.Sebastian.4": "Você tá me encarando por trás?#$b#...Isso soa mais estranho quando eu falo em voz alta.$18",
+  "preDatingCloseBack2.Sebastian.5": "Yoba, que susto!$13#$b#Eu não esperava ter alguém me encarando pelas costas... principalmente você.",
+  "preDatingCloseBack2.Sebastian.6": "Whoaa!$13#$b#Você é sempre silenciosa assim quando chega por trás de alguém?$s",
+  "preDatingCloseBack2.Sebastian.7": "O qu— @!?$13#$b#Eu não percebi você atrás de mim. A quanto tempo você está aí, aliás?$s",
+  "preDatingCloseBack2.Sebastian.8": "Ah— oi.$17#$b#Você... quer falar algo comigo ou só queria ficar aí parada atrás de mim mesmo?$20",
+  "preDatingCloseBack2.Sebastian.9": "Você, uh... tá aí parada atrás de mim a muito tempo?#$b#Eu devia perguntar o motivo, mas acho que vou só ignorar dessa vez.$s",
+  "preDatingCloseBack2.Sebastian.10": "O-Oh!!$13#$b#Você sempre fica olhando as pessoas assim, ou eu sou um caso especial?$28",
+
+//SEB DE FRENTE
+
+  "preDatingCloseFront2.Sebastian.1": "Você percebeu que a gente tá só... se encarando, né?#$b#Não que isso seja um problema. Talvez um pouco. É um pouco estranho, na verdade.",
+  "preDatingCloseFront2.Sebastian.2": "Você tá tipo, me encarando muito perto.#$b#Eu não tô reclamando, só... tentando entender se você quer falar alguma coisa.",
+  "preDatingCloseFront2.Sebastian.3": "Hm... você tá olhando muito pra mim.#$b#É meio estranho... eu devia perguntar o motivo mas tenho medo da resposta ser mais estranha ainda.",
+  "preDatingCloseFront2.Sebastian.4": "Você costuma ficar parada na frente das pessoas assim?#$b#Porque eu não sei muito bem qual é a reação social correta aqui.$s",
+  "preDatingCloseFront2.Sebastian.5": "Você tá me encarando descaradamente faz alguns segundos...#$b#E eu tô tentando fingir que isso não é nem um pouco esquisito.$s",
+  "preDatingCloseFront2.Sebastian.6": "Tem alguma coisa no meu rosto? Ou você só decidiu ficar me encarando sem motivo algum?$s",
+  "preDatingCloseFront2.Sebastian.7": "Eu não sou muito bom nesse tipo de coisa. Isso de ficar olhando para as pessoas.#$b#Principalmente quando você tá bem na minha frente me encarando.$s",
+  "preDatingCloseFront2.Sebastian.8": "Tá... tudo bem? Você tá me encarando demais.#$b#Eu devia perguntar o porquê ou só fingir que isso é normal?$s",
+  "preDatingCloseFront2.Sebastian.9": "A gente tá só... parado se encarando.#$b#Isso é uma coisa normal pra você?$28",
+  "preDatingCloseFront2.Sebastian.10": "...A gente vai continuar se olhando assim?#$b#Porque eu não tenho certeza do que eu deveria fazer agora.$s",
+
+//4 CORAÇÕES
+
+
+//SEB DE LADO
+
+  "preDatingCloseSide4.Sebastian.1": "Você tá me encarando de novo. O pior é que... eu já tô me acostumando com isso.#$b#Não significa que eu saiba reagir melhor, só pra deixar claro.$28",
+  "preDatingCloseSide4.Sebastian.2": "Quando você fica me olhando assim de perto, eu... acabo esquecendo o que ia falar.#$b#Você faz isso de propósito?$h",
+  "preDatingCloseSide4.Sebastian.3": "Você passa bastante tempo me observando, né?#$b#...Não tô reclamando. Só acho curioso que, de todas as pessoas, você olha tanto assim logo pra mim.$16",
+  "preDatingCloseSide4.Sebastian.4": "Minha mente costuma ser bem barulhenta, mas... quando você me encara desse jeito, eu fico sem saber o que fazer.",
+  "preDatingCloseSide4.Sebastian.5": "Já vi que não tem nada no meu rosto e você só gosta mesmo de me encarar.#$b#...E-Eu ainda não sei o que fazer quando você faz isso.$s",
+  "preDatingCloseSide4.Sebastian.6": "Você sabe que ficar me olhando assim tão de perto me deixa meio nervoso, né?#$b#Não que você precise parar.$16#$b#Quer dizer— esquece, isso saiu estranho.$17",
+  "preDatingCloseSide4.Sebastian.7": "Eu costumo odiar quando as pessoas ficam me encarando.#$b#Mas com você... por algum motivo, eu não consigo odiar. Só achar estranho.$h",
+  "preDatingCloseSide4.Sebastian.8": "Eu, uh... fico me perguntando o que passa na sua cabeça quando você fica me olhando assim tão quieta.#$b#...Coisa boa, eu espero.$28",
+  "preDatingCloseSide4.Sebastian.9": "Você tá me encarando como se estivesse esperando alguma reação.#$b#O problema é que eu acho que já te dei uma.$28",
+  "preDatingCloseSide4.Sebastian.10": "Você tá aí me encarando de novo.$18#$b#Eu tô começando a achar que isso virou algum tipo de hábito esquisito seu.$h",
+
+//SEB DE COSTAS
+
+  "preDatingCloseBack4.Sebastian.1": "Ah— @!$13#$b#Você precisa parar de aparecer atrás de mim assim... ou pelo menos fazer algum barulho antes.$28",
+  "preDatingCloseBack4.Sebastian.2": "...Você tem uma mania estranha de me secar por trás.$28#$b#...Ok, péssima escolha de palavras, finge que eu não disse nada.$22",
+  "preDatingCloseBack4.Sebastian.3": "Yoba... @, você me assustou.#$b#Eu achei que já estava ficando melhor em perceber quando você chega por trás do nada desse jeito.$h",
+  "preDatingCloseBack4.Sebastian.4": "V-Você tá me encarando pelas costas de novo?#$b#Isso ainda é estranho... só um pouco menos estranho do que antes.$28",
+  "preDatingCloseBack4.Sebastian.5": "Ei, ficar me encarando pelas costas é meio... constrangedor.$16#$b#Quer dizer, não que a minha... ugh.$20#$b#Esquece. Finge que eu nasci mudo.$25",
+  "preDatingCloseBack4.Sebastian.6": "Você é sempre tão quieta quando chega perto dos outros?#$b#Ou eu sou o único que você gosta de pegar desprevenido?$28",
+  "preDatingCloseBack4.Sebastian.7": "Ah— @.$13#$b#Eu não percebi você aí atrás. Você tem um talento estranho pra aparecer quando eu tô distraído.",
+  "preDatingCloseBack4.Sebastian.8": "Ah... oi.#$b#Você quer falar comigo ou só decidiu ficar me analisando aí atrás em silêncio?#$b#Porque, honestamente, eu não sei qual opção me deixa menos sem jeito.$h",
+  "preDatingCloseBack4.Sebastian.9": "Você tá parada atrás de mim faz um tempo, né?#$b#Eu devia perguntar o porquê, mas acho que a resposta pode me deixar ainda mais nervoso.$25",
+  "preDatingCloseBack4.Sebastian.10": "Por que você tá me olhando tanto por trás? Tem algo no meu cabelo ou você só...#$b#...Nossa, isso ia soar terrivelmente estranho...$17#$b#Deixa pra lá.$20",
+
+//SEB DE FRENTE
+
+  "preDatingCloseFront4.Sebastian.1": "A gente tá parado aqui se encarando de novo...#$b#Isso tá começando a acontecer com frequência demais pra eu fingir que não noto.$28",
+  "preDatingCloseFront4.Sebastian.2": "Você tá muito... perto de mim.$16#$b#Não precisa se afastar.$h#$b#Quer dizer— pode, se quiser. Eu não...$23#$b#...Deixa pra lá.$25",
+  "preDatingCloseFront4.Sebastian.3": "Você me olhando assim tão de frente... eu ainda não me acostumei com isso.$25#$b#Quer me dizer alguma coisa?$25",
+  "preDatingCloseFront4.Sebastian.4": "...Ahm... esse silêncio entre a gente tá ficando meio estranho.#$b#...Não que eu queira que você se afaste. É só que... ainda estou me acostumando com isso.$16",
+  "preDatingCloseFront4.Sebastian.5": "A gente tá se encarando de novo.#$b#Eu devia achar estranho, mas... acho que já tô ficando acostumado com isso.$28",
+  "preDatingCloseFront4.Sebastian.6": "Eu ia perguntar se tem algo no meu rosto, mas a gente já passou dessa fase, né? Heh.$28#$b#Eu só não decidi ainda se isso é estranho ou só você sendo você.$h",
+  "preDatingCloseFront4.Sebastian.7": "Geralmente eu recuo na hora quando alguém invade meu espaço pessoal ou ficam me encarando.#$b#Mas quando é você fazendo isso... meu cérebro só escolhe não fazer nada.$16",
+  "preDatingCloseFront4.Sebastian.8": "@, quando você fica me encarando assim do nada, meu cérebro trava.$s#$b#N-Não estou dizendo que é ruim, só é algo que continua sendo... inesperado.$28",
+  "preDatingCloseFront4.Sebastian.9": "...Você tá tão perto que eu consigo sentir o seu perfume...$28#$b#N-Não que eu esteja prestando atenção nisso. Quer dizer... eu só notei.$17",
+  "preDatingCloseFront4.Sebastian.10": "Eu não sei se você quer falar comigo ou só... me observar.#$b#Mas ficar parado aqui tentando adivinhar tá me deixando meio nervoso.$25",
+
+//6 CORAÇÕES
+
+
+//SEB DE LADO
+  
+  "preDatingCloseSide6.Sebastian.1": "Eu fico tentando entender o porquê você fica olhando tanto pra mim.#$b#...Mas talvez pensar demais nisso seja uma péssima ideia.$25",
+  "preDatingCloseSide6.Sebastian.2": "Quando você fica me olhando assim, eu perco totalmente o fio da meada.#$b#...Eu queria dizer que isso não acontece sempre, mas seria mentira.$h",
+  "preDatingCloseSide6.Sebastian.3": "Você passa bastante tempo me observando, né?#$b#...Que bom.$16#$b#Quer dizer— não que eu fique esperando por isso ou algo assim.$22",
+  "preDatingCloseSide6.Sebastian.4": "Se você continuar me olhando desse jeito, eu vou acabar dizendo alguma coisa idiota.$16#$b#Então vou só fingir que isso é normal.$28",
+  "preDatingCloseSide6.Sebastian.5": "Eu ia perguntar por que você fica me olhando tanto assim.#$b#...Mas acho que tenho medo de você realmente responder.$16",
+  "preDatingCloseSide6.Sebastian.6": "Você sabe exatamente o que tá fazendo quando fica me olhando assim, né?$16#$b#N-Não responde. Eu acho que ainda prefiro não confirmar.$l",
+  "preDatingCloseSide6.Sebastian.7": "Eu já devia estar acostumado com você fazendo isso, mas meu cérebro continua achando que precisa travar toda vez.$25",
+  "preDatingCloseSide6.Sebastian.8": "Eu fico tentando decifrar esse seu olhar quando você fica aí quieta do meu lado.#$b#...Mas talvez seja melhor eu não pensar demais nisso.$16",
+  "preDatingCloseSide6.Sebastian.9": "Se a sua intenção com esse olhar era me deixar sem jeito... funcionou.$28#$b#Não que isso seja uma grande conquista. Eu já sou ruim nisso normalmente.$16",
+  "preDatingCloseSide6.Sebastian.10": "Você pegou mesmo esse hábito de parar do meu lado e ficar me secando, né?$11#$b#...O pior de tudo é que eu já me pego esperando por isso.$h",
+
+//SEB DE COSTAS
+
+  "preDatingCloseBack6.Sebastian.1": "Você tá tentando me assustar ou só gosta de ver como eu reajo?$h#$b#...Não responde isso. Acho que eu já sei.$l",
+  "preDatingCloseBack6.Sebastian.2": "Eu senti alguém atrás de mim e, por algum motivo, já imaginei que fosse você.$28#$b#...Isso provavelmente diz alguma coisa sobre a gente.$h",
+  "preDatingCloseBack6.Sebastian.3": "Ah— você.#$b#Eu devia estar surpreso, mas isso tá começando a virar um padrão entre a gente, heh.$28",
+  "preDatingCloseBack6.Sebastian.4": "Tá... você me assustou um pouco.#$b#Mas acho que eu já devia estar acostumado com você fazendo isso.$h",
+  "preDatingCloseBack6.Sebastian.5": "Ah, você tá aí atrás de mim de novo.#$b#Eu devia achar estranho, mas ultimamente eu só fico tentando não reagir demais.$28",
+  "preDatingCloseBack6.Sebastian.6": "Eu quase perguntei quem era que estava atrás de mim, mas, honestamente, eu já tinha uma boa suspeita.$h",
+  "preDatingCloseBack6.Sebastian.7": "Você sabe que ficar parada atrás de mim assim ainda me deixa nervoso, né?$28#$b#Mesmo que... talvez um pouco menos do que antes.$16",
+  "preDatingCloseBack6.Sebastian.8": "Ahm... oi.#$b#Você tem um talento específico pra aparecer quando eu tô com a guarda baixa.$28",
+  "preDatingCloseBack6.Sebastian.9": "heh, eu senti alguém atrás de mim e pensei: 'deve ser ela'.$7#$b#O fato de eu ter acertado é... um pouco preocupante.$16",
+  "preDatingCloseBack6.Sebastian.10": "Você podia avisar antes de ficar tão perto pelas minhas costas.#$b#Mas acho que isso tiraria metade da graça pra você, né?$h",
+
+//SEB DE FRENTE
+
+  "preDatingCloseFront6.Sebastian.1": "E-Espera, @, não fica assim tão perto me olhando desse jeito.$16#$b#Você faz tanto isso que eu achei que ia me acostumar, mas... claramente eu ainda não sei lidar com isso.$16",
+  "preDatingCloseFront6.Sebastian.2": "U-Uh, @... a gente tá se encarando faz um tempo já, né?$16#$b#...Você transformou isso em uma rotina, mas eu continuo sem saber pra onde olhar sem ficar totalmente vermelho.$h",
+  "preDatingCloseFront6.Sebastian.3": "Você me olhando de frente desse jeito... tá procurando algum defeito?$28#$b#...Ou só quer ter certeza de que conseguiu me deixar corado de novo?$l",
+  "preDatingCloseFront6.Sebastian.4": "Ahm... @? Você percebeu o quão perto a gente tá?$16#$b#Já virou mania sua me fuzilar com esse olhar, né? O pior é que eu fico totalmente sem reação quando você faz isso.$l",
+  "preDatingCloseFront6.Sebastian.5": "@... n-não precisa chegar tão perto só pra me olhar assim.$l#$b#Quer dizer... até pode, é só que eu... ainda não sou bom em lidar com isso.$16",
+  "preDatingCloseFront6.Sebastian.6": "Ahm, @... você... você tá perto demais.$25#$b#Eu sei que você adora ficar me encarando assim, mas meu rosto tá começando a esquentar e eu não sei muito bem o que fazer com isso.$25",
+  "preDatingCloseFront6.Sebastian.7": "Esse silêncio com a gente se encarando tão de perto chega a dar um frio na barriga.$16#$b#...Um frio na barriga bom. Só pra deixar claro.$l",
+  "preDatingCloseFront6.Sebastian.8": "Ahm... t-tem algum motivo específico pra você estar sempre me secando de tão de perto?$h#$b#Eu sei que virou um hábito seu, mas... fica muito difícil raciocinar com você me olhando assim.$l",
+  "preDatingCloseFront6.Sebastian.9": "V-Você parada aí me olhando de frente de novo...$28#$b#Eu já devia estar treinado pra isso, mas meu cérebro ainda trava completamente toda vez.$l",
+  "preDatingCloseFront6.Sebastian.10": "...Você me encarando nos olhos tão de perto me deixa em uma situação bem complicada.$16#$b#Eu não sei se dou um passo pra trás ou... deixa pra lá, esquece.$l",
+
+//8 CORAÇÕES
+
+
+//SEB DE LADO
+
+  "preDatingCloseSide8.Sebastian.1": "Você fica tão quieta me encarando que às vezes eu me pego inclinando na sua direção.$16#$b#N-Não de propósito! É só... reflexo. Coisa de gravidade.$23#$b#Ou... ugh, me enterra.$25",
+  "preDatingCloseSide8.Sebastian.2": "Ahm... t-tá tudo bem, @? Você já tá a um bom tempo aí... me encarando.$16#$b#Eu viro achando que tenho algo no rosto, mas... acho que você só gosta mesmo de ficar perto.$16#$b#...Você pode, uh, vir mais perto. Eu não me incomodaria com isso.$l",
+  "preDatingCloseSide8.Sebastian.3": "...E-Eu sinto o peso do seu olhar, @. É quase palpável.$16#$b#Aí eu viro e você não desvia... você só continua me encarando com esse sorriso.$l#$b#...Fico pensando se você... uh... deixa pra lá, heh.$l",
+  "preDatingCloseSide8.Sebastian.4": "Você tá me olhando tanto que parece que tá tentando ler meus pensamentos.$28#$b#Ainda bem que não dá. Se desse, você ia ver que...$16#$b#Quer dizer, não tem nada demais neles!$23#$b#Só... coisas idiotas.$22",
+  "preDatingCloseSide8.Sebastian.5": "@, eu, uh... eu sinto o seu olhar queimando na minha bochecha e quando eu viro... você tá com essa cara.$l#$b#...O que você tanto olha, hein?$16#$b#E-Eu não tenho nada de especial, mas... gosto que você ache que sim.$l",
+  "preDatingCloseSide8.Sebastian.6": "Os seus olhos estão totalmente fixos em mim de novo.$28#$b#...Você... tá procurando algum motivo pra ficar mais perto? Eu não me importaria.$16#$b#Quer dizer, você pode ficar mais perto de mim... se você quiser.$l",
+  "preDatingCloseSide8.Sebastian.7": "Você me olhando assim e com esse sorrisinho... me deixa completamente idiota.$25#$b#Mais idiota que o normal, quero dizer.$16#$b#Não me olha assim, meu cérebro parou de funcionar.$h",
+  "preDatingCloseSide8.Sebastian.8": "Você realmente pegou o hábito de parar do meu lado só pra ficar me olhando em silêncio.#$b#...Isso é... isso é bom.$16#$b#Q-Quer dizer, é tolerável. Não, espera, soou pior ainda.$17#$b#...Finge que eu não falei nada.$22",
+  "preDatingCloseSide8.Sebastian.9": "...Você tá tão perto me observando que eu consigo ouvir a sua respiração.$l#$b#N-Não que eu esteja prestando atenção nisso!$17#$b#Quer dizer— eu prestei, mas não de um jeito estranho.$20",
+  "preDatingCloseSide8.Sebastian.10": "Ahm, @... v-você percebeu que tá me encarando faz um tempão?$16#$b#Eu viro pra ver se você quer alguma coisa e sou recebido com esse olhar de... uh, não sei explicar.$l#$b#...Só sei que isso meio que mexe comigo. Bastante.$l",
+
+//SEB DE COSTAS
+
+  "preDatingCloseBack8.Sebastian.1": "Dá pra sentir o calor do seu corpo quase encostando no meu.$16#$b#...Eu gosto disso.$l#$b#Digo— é uma temperatura aceitável. Esquece, eu sou um idiota.$23",
+  "preDatingCloseBack8.Sebastian.2": "Você já para tanto aí atrás pra me encarar que eu já tô até me acostumando com a sua presença.$h#$b#...O que não significa que a minha nuca não continue arrepiando toda vez.$l",
+  "preDatingCloseBack8.Sebastian.3": "Eu nem precisei olhar por cima do ombro pra saber que era você. O seu perfume te entregou na hora.$28#$b#...Tá. Isso soou mais íntimo do que eu pretendia.$16",
+  "preDatingCloseBack8.Sebastian.4": "Ficar me observando pelas costas já virou um hábito seu.$7#$b#...O mais curioso é que eu passei a esperar você fazer isso... e sinto falta quando você não faz.$l",
+  "preDatingCloseBack8.Sebastian.5": "Ficar aí quieta me olhando... o que passa na sua cabeça, hein?$16#$b#...Não, não responde. Acho que eu ficaria sem saber o que fazer com a resposta.$l",
+  "preDatingCloseBack8.Sebastian.6": "Dá pra sentir o seu calor daqui... É engraçado como você consegue me deixar calmo e tenso ao mesmo tempo.$16#$b#...Não precisa se afastar.$l",
+  "preDatingCloseBack8.Sebastian.7": "Se você desse só mais um passo, a gente ia acabar se encostando.$l#$b#...Eu fico aqui me perguntando se você... um, bom... se você tamb... e-esquece.$l",
+  "preDatingCloseBack8.Sebastian.8": "@... a minha nuca tá queimando com esse seu olhar focado nela...$16#$b#...Não literalmente. Só... dá pra sentir quando você tá prestando atenção demais.$l",
+  "preDatingCloseBack8.Sebastian.9": "Eu já decorei tanto a sua proximidade que reconheço o som dos seus passos parando atrás de mim.$h#$b#...E, pra ser bem sincero, eu adoro ter essa certeza de que é você que está aí.$l",
+  "preDatingCloseBack8.Sebastian.10": "Senti o seu cheiro no ar e na hora soube que tava sendo observado pelas costas.$h#$b#...Você me deixou totalmente mal-acostumado com essa sua mania.$l",
+
+//SEB DE FRENTE
+
+  "preDatingCloseFront8.Sebastian.1": "Ahm... @... se a gente ficar se olhando desse jeito por mais tempo, eu vou acabar...$l#$b#...D-Deixa pra lá. O que eu ia dizer tinha grandes chances de me deixar mais vermelho ainda.$16",
+  "preDatingCloseFront8.Sebastian.2": "Você tem esse jeito de ficar em silêncio e ainda assim dizer coisa demais com os olhos.$16#$b#...Ou talvez eu só esteja pensando demais. De novo.$l",
+  "preDatingCloseFront8.Sebastian.3": "V-Você tá tão perto que eu consigo contar os seus cílios.$16#$b#Não que eu estivesse contando. Quer dizer... talvez um pouco, heh.$l",
+  "preDatingCloseFront8.Sebastian.4": "Eu já devia estar acostumado com você fazendo isso a essa altura.$28#$b#...Mas meu cérebro continua agindo como se fosse a primeira vez.$16",
+  "preDatingCloseFront8.Sebastian.5": "...Dá pra sentir o ar que você respira batendo no meu queixo de tão perto que a gente tá...$16#$b#E-Eu devia dar um passo pra trás por educação, mas... meu corpo não tá respondendo os comandos do meu cérebro.$l",
+  "preDatingCloseFront8.Sebastian.6": "V-Você me encarando e estando tão perto assim sem eu poder... ahm, sem fazer nada a respeito é bem difícil.$16#$b#Quer dizer, não que eu devesse fazer algo. A gente não... ugh.$17#$b#...Vou calar a boca antes que piore.$25",
+  "preDatingCloseFront8.Sebastian.7": "@... você tá tão perto que eu consigo ver o meu reflexo nos seus olhos.$16#$b#...Não que eu estivesse reparando tanto. Quer dizer... claramente eu estava.$l",
+  "preDatingCloseFront8.Sebastian.8": "Isso é pra ver quem desvia o olhar primeiro? Porque eu já perdi no momento em que notei o quanto você tá linda hoje.$h#$b#...D-Desculpa, essa última parte meio que... escapou.$l",
+  "preDatingCloseFront8.Sebastian.9": "...@, v-você me olha com uma intensidade que... ahm... como eu posso dizer isso...$16#$b#...É como se você... uh... d-deixa pra lá, heh.$l",
+  "preDatingCloseFront8.Sebastian.10": "Uh, @... a gente tá tão perto que se você se inclinar só mais um pouco...$16#$b#...Yoba, é melhor a gente mudar de assunto antes que eu faça algo idiota.$l",
+
+//8 CORAÇÕES - DATING
+
+
+//SEB DE LADO
+
+  "DatingCloseSide8.Sebastian.1": "...A gente já tá namorando, eu não devia mais ficar com o coração na boca só porque você tá me olhando.$h#$b#...Você tem um efeito permanentemente ridículo sobre o meu sistema nervoso.$l",
+  "DatingCloseSide8.Sebastian.2": "Se você continuar me encarando assim, eu vou ter que te puxar pra perto, e... uh...$16#$b#Deixa pra lá. Fazer ameaças soa bem mais fácil na minha cabeça do que em voz alta.$l",
+  "DatingCloseSide8.Sebastian.3": "@, se você continuar me olhando assim, eu vou acabar te puxando pra perto.$11#$b#...Isso foi um aviso ou uma promessa? Não sei ainda, mas logo logo a gente vai descobrir.$l",
+  "DatingCloseSide8.Sebastian.4": "@, você já tá há um tempo me olhando assim... se você quer ficar mais perto, vem.$16#$b#Eu posso até fingir surpresa, mas você sabe que eu adoro isso.$h",
+  "DatingCloseSide8.Sebastian.5": "Ahm, @... v-você vai ficar só me encarando assim?$16#$b#Você pode chegar mais perto. Minhas mãos estão bem aqui. Pode entrelaçar os dedos nos meus... eu... meio que estava esperando você fazer isso.$l",
+  "DatingCloseSide8.Sebastian.6": "Ahm... tem algo no meu rosto hoje ou você só decidiu me deixar com vergonha de propósito?$28#$b#Mesmo namorando, eu ainda não aprendi a lidar com você me olhando tanto desse jeito.$h",
+  "DatingCloseSide8.Sebastian.7": "Agora que a gente tá namorando, eu achei que ia parar de ficar nervoso com você me encarando tanto.#$b#...Claramente eu tava errado.$h#$b#Minha orelha ainda esquenta do mesmo jeito.$l",
+  "DatingCloseSide8.Sebastian.8": "@, você já tá há um tempo me encarando...$16#$b#Se você tá esperando eu dizer que você pode vir me beijar, então... pode. Você sempre pode.$l",
+  "DatingCloseSide8.Sebastian.9": "Você já me encara desse jeito há meses, e por algum motivo meu cérebro ainda reage como se fosse a primeira vez.$h#$b#...Só que agora eu posso simplesmente fazer você parar com isso e te puxar pra perto... e te beijar.$l",
+  "DatingCloseSide8.Sebastian.10": "@, você tá me olhando demais.$28#$b#N-Não precisa ficar só me olhando assim. Quer dizer, poder pode, mas tipo, a gente tá junto... você pode vir pra mais perto e invadir meu espaço o quanto você quiser.$l",
+
+//SEB DE COSTAS
+
+  "DatingCloseBack8.Sebastian.1": "Dá pra sentir a sua respiração bem na minha nuca... e você sabe muito bem o que isso faz comigo.$16#$b#Se continuar me provocando assim, eu definitivamente vou te dar o troco mais tarde.$l",
+  "DatingCloseBack8.Sebastian.2": "@... você colada assim nas minhas costas... dá pra sentir perfeitamente o calor do seu corpo... é um jeito bem sujo de monopolizar a minha atenção.$l",
+  "DatingCloseBack8.Sebastian.3": "Ficar me olhando aí por trás em silêncio sem encostar em mim... é injusto.$28#$b#...Passa os seus braços em volta de mim. Meu corpo inteiro já tá tenso esperando por isso.$l",
+  "DatingCloseBack8.Sebastian.4": "Sério, @, dá pra ouvir a sua respiração daqui. É fisicamente impossível focar em alguma coisa assim.$16#$b#...Desliza a sua mão por baixo do meu moletom de uma vez. Ficar só me provocando desse jeito não vale.$l",
+  "DatingCloseBack8.Sebastian.5": "Você tá tão perto aí atrás... em vez de ficar só olhando a minha nuca, por que não me abraça?$16#$b#...Eu... tava esperando muito que você fizesse isso.$l",
+  "DatingCloseBack8.Sebastian.6": "Dá pra sentir um arrepio descendo pela minha espinha só com a sua proximidade aí atrás... sério, @, o que você tá tramando?$l#$b#...O-qu—!?$23#$b#N-Não faz isso... ou eu vou ficar apertando a sua também.$h",
+  "DatingCloseBack8.Sebastian.7": "Ter você tão perto da minha nuca me deixa em um estado de alerta ridículo...$h#$b#...Mas não recua. Na verdade, pode me abraçar... meu cérebro só consegue focar no seu calor quando está abraçada em mim.$l",
+  "DatingCloseBack8.Sebastian.8": "Se você desse mais meio passo, a gente ia ficar completamente colado...$28#$b#...E considerando que o meu autocontrole é baixo, é melhor você ter certeza do que tá fazendo.$l",
+  "DatingCloseBack8.Sebastian.9": "Dá pra sentir o seu olhar queimando bem na minha nuca, @. É quase covardia.$16#$b#...Se você quiser escorregar os seus braços por baixo do meu moletom, você pode... eu... eu sou todo seu.$l",
+  "DatingCloseBack8.Sebastian.10": "Você me olhando assim por trás... parece que tá só calculando o melhor lugar pra me atacar.$28#$b#...P-Pode atacar. Eu não reclamaria nem um pouco se você roçasse o seu corpo atrás de mim.$l",
+
+//SEB DE FRENTE
+
+  "DatingCloseFront8.Sebastian.1": "Você adora me deixar sem graça com esse olhar fixo no meu, mas... olha só, suas bochechas tão corando também.$7#$b#...Dois podem jogar esse jogo de silêncio. E eu definitivamente não pretendo perder hoje.$11",
+  "DatingCloseFront8.Sebastian.2": "...A gente tá dividindo o mesmo ar de tão colados que estamos.$l#$b#...Sabe que quando estamos assim, fica impossível resistir à vontade de puxar a sua cintura.$l",
+  "DatingCloseFront8.Sebastian.3": "Você tá me deixando sem onde colocar minhas mãos desse jeito, @...$16#$b#Dá pra ver o reflexo exato da minha cara de idiota nos seus olhos. V-Vem cá, chega mais...$l",
+  "DatingCloseFront8.Sebastian.4": "...Estamos a centímetros de distância, @.$l#$b#Se eu te beijasse agora, seria culpa sua por ficar me olhando assim... mas eu vou me controlar. Por enquanto.$11",
+  "DatingCloseFront8.Sebastian.5": "Eu podia te puxar pra perto agora mesmo...$l#$b#Mas acho que vou deixar você imaginando isso um pouco.$h#$b#Parece justo, depois de tudo que você faz comigo.$11",
+  "DatingCloseFront8.Sebastian.6": "Dá pra sentir a sua respiração batendo no meu queixo de tão perto que a gente tá.$l#$b#...Se você não tivesse que ir trabalhar agora, eu ia pedir pra você ficar assim só mais alguns minutos.$l",
+  "DatingCloseFront8.Sebastian.7": "Ahm, @... e-estamos a centímetros de distância...$16#$b#Eu até poderia te roubar um beijo agora mesmo, mas acho que vou me conter só pra poder me vingar das suas provocações.$11",
+  "DatingCloseFront8.Sebastian.8": "Ficar me encarando de frente em silêncio... você tá calculando o tempo exato pra me atacar?$28#$b#...Porque por mim, você já podia ter atacado faz tempo. Não me deixa esperando.$l",
+  "DatingCloseFront8.Sebastian.9": "*sussurrando* Se você der mais meio passo pra frente, nossos lábios vão acabar se encostando.$l#$b#...Isso é um convite silencioso? Porque se for, eu definitivamente não vou recusar.$l",
+  "DatingCloseFront8.Sebastian.10": "A gente tá perto o suficiente pra eu sentir sua respiração falhar um pouco...$l#$b#É muito bom ver que o jogo virou.$7#$b#Acho que vou te deixar na expectativa mais um tempo só pra curtir a vista.$11",
+
+
+//SHORT COMMENTS
+
+  "preDatingFrontBalloon4_6_8.Sebastian.1": "*suspira*",
+  "preDatingFrontBalloon4_6_8.Sebastian.2": "*suspira baixinho*",
+  "preDatingFrontBalloon4_6_8.Sebastian.3": "*ahem*",
+  "preDatingFrontBalloon4_6_8.Sebastian.4": "*cora*",
+  "preDatingFrontBalloon4_6_8.Sebastian.5": "*suspiro profundo*",
+
+  "preDatingFrontAfterLeaveBalloon8.Sebastian.1": "*suspira*",
+  "preDatingFrontAfterLeaveBalloon8.Sebastian.2": "*suspiro profundo*",
+  "preDatingFrontAfterLeaveBalloon8.Sebastian.3": "...Yoba.",
+  "preDatingFrontAfterLeaveBalloon8.Sebastian.4": "*suspira baixinho*",
+  "preDatingFrontAfterLeaveBalloon8.Sebastian.5": "*cora*",
+
+  "DatingFrontBalloon8.Sebastian.1": "Ei... vem cá.",
+  "DatingFrontBalloon8.Sebastian.2": "Você... vai ficar aí mesmo?",
+  "DatingFrontBalloon8.Sebastian.3": "Chega mais perto...",
+  "DatingFrontBalloon8.Sebastian.4": "Tá me provocando de longe agora?",
+  "DatingFrontBalloon8.Sebastian.5": "Heh, vem aqui.",
+
+  "DatingFrontAfterLeaveBalloon8.Sebastian.1": "*suspira*",
+  "DatingFrontAfterLeaveBalloon8.Sebastian.2": "*suspiro profundo",
+  "DatingFrontAfterLeaveBalloon8.Sebastian.3": "*cora*",
+  "DatingFrontAfterLeaveBalloon8.Sebastian.4": "*suspiro baixinho*",
+  "DatingFrontAfterLeaveBalloon8.Sebastian.5": "Yoba...",
+
+//SEB SENTADO NO PC
+
+  "preDatingPcSide2.Sebastian.1": "Eu até tentaria te explicar o que eu tô fazendo, mas... acho que você ia ficar entediada em dois minutos.#$b#Melhor só me deixar terminar aqui.$s",
+  "preDatingPcSide2.Sebastian.2": "Eu tô tentando trabalhar...#$b#Mas é meio difícil ignorar alguém parada bem do meu lado.$s",
+  "preDatingPcSide2.Sebastian.3": "Eu preciso entregar esse projeto logo.#$b#Se você ficar aí do lado me observando, eu vou acabar digitando alguma coisa errada por distração.$28",
+  "preDatingPcSide2.Sebastian.4": "Não é que eu não queira conversar, mas... programação exige silêncio.#$b#E ter alguém parado do meu lado encarando a tela me deixa um pouco tenso.$s",
+  "preDatingPcSide2.Sebastian.5": "Tem... alguma coisa que você quer me dizer? Ou você só decidiu me observar programando?",
+  "preDatingPcSide2.Sebastian.6": "Dá pra... uh, dar um passo pra trás?#$b#Eu sinto que tô sendo avaliado por um supervisor e eu sou freelancer justamente pra evitar isso.$s",
+  "preDatingPcSide2.Sebastian.7": "Eu não sou muito bom trabalhando com plateia. Principalmente quando a plateia fica tão perto assim.$s",
+  "preDatingPcSide2.Sebastian.8": "Ahm... se você tá esperando eu terminar pra gente conversar, vai demorar um pouco.#$b#...Não precisa ficar aí de pé me esperando... s-se quiser, pode ficar ali no sofá, ou voltar quando eu estiver livre.$s",
+  "preDatingPcSide2.Sebastian.9": "Você entende alguma coisa de lógica de programação?#$b#Porque se não entende, ficar encarando essa tela comigo deve ser a coisa mais entediante do mundo.$28",
+  "preDatingPcSide2.Sebastian.10": "Eu, uh... tô quase perdendo o fio da meada aqui.#$b#É meio difícil manter o raciocínio lógico quando tem alguém te encarando do lado assim.",
+
+  "preDatingPcSide4.Sebastian.1": "Ahm... não precisa ficar aí de pé parecendo um guarda, sabe?#$b#Pode se acomodar. Eu não mordo... a menos que mexam na organização dos meus cabos.$28",
+  "preDatingPcSide4.Sebastian.2": "Eu devia te cobrar um aluguel por usar meu espaço de trabalho como ponto de descanso.#$b#...Brincadeira. Pode ficar aí o tempo que quiser.$h",
+  "preDatingPcSide4.Sebastian.3": "Ficar me vendo quebrar a cabeça com essa linha de código virou um do seus passatempos?$28#$b#Se for, pelo menos tenta não rir quando eu errar uma vírgula.$h",
+  "preDatingPcSide4.Sebastian.4": "Ahm... eu tô quase terminando esse módulo.#$b#Se você aguentar o tédio de me ver digitar por mais uns minutos, a gente pode conversar.$7",
+  "preDatingPcSide4.Sebastian.5": "Você parada aí tão quieta... às vezes eu até esqueço que tô sendo observado.#$b#...Até eu virar o rosto e dar de cara com você me olhando, claro.$16",
+  "preDatingPcSide4.Sebastian.6": "Se você continuar me observando com essa cara de curiosidade, vou te botar pra procurar erro nesse código pra mim.$28#$b#...E aí você vai se arrepender de ter parado aqui.$h",
+  "preDatingPcSide4.Sebastian.7": "Meus olhos estão ardendo de tanto olhar pra essa tela cheia de código.#$b#Então, se eu digitar alguma coisa errada, vou culpar você por me distrair.$28",
+  "preDatingPcSide4.Sebastian.8": "Você não tem que ir colher nada ou cortar lenha hoje?$28#$b#Ficar me vendo digitar deve ser a própria definição de tédio pra você.$h",
+  "preDatingPcSide4.Sebastian.9": "Eu, uh... acabei de cometer um erro de digitação bobo aqui.#$b#A culpa é totalmente sua por ficar me encarando e tirando o meu foco.$25",
+  "preDatingPcSide4.Sebastian.10": "Eu tô em um nível de cafeína e tela que mal sei que horas são direito.#$b#...Mas com você aqui do lado até que me ajuda a lembrar que existe um mundo real lá fora.$7",
+
+  "preDatingPcSide6.Sebastian.1": "Eu tava indo super bem no meu código até perceber você aí do lado me encarando.#$b#...Agora eu já apaguei e reescrevi a mesma linha umas quatro vezes de nervoso.$18",
+  "preDatingPcSide6.Sebastian.2": "Ahm, @... d-dá pra sentir o seu olhar queimando a minha bochecha daqui.#$b#Você sabe que eu fico totalmente sem jeito trabalhando com você me olhando assim, né?$16",
+  "preDatingPcSide6.Sebastian.3": "...Dá pra ver o seu reflexo na tela do meu monitor.$28#$b#...É muito injusto, porque eu tento focar no trabalho, mas acabo prestando atenção em você ao invés disso.$16",
+  "preDatingPcSide6.Sebastian.4": "Você parada aí inspecionando a mim e ao meu trabalho... já virou rotina.#$b#O perigo é que a minha capacidade de raciocínio lógico vai pro espaço toda vez que você faz isso.$h",
+  "preDatingPcSide6.Sebastian.5": "Ahm, @... s-se você quer conversar, é só me falar.$28#$b#...Ficar me encarando com esse sorrisinho me deixa tão sem jeito que minhas mãos estão quase tremendo no teclado.$l",
+  "preDatingPcSide6.Sebastian.6": "Ótimo. Eu acabei de fechar uma aba importante por puro reflexo de nervoso sentindo o seu olhar.$18#$b#...Você é uma ameaça terrível pra minha produtividade, sabia?$28",
+  "preDatingPcSide6.Sebastian.7": "...Geralmente eu coloco fones pra me isolar do mundo quando tô no PC.#$b#...Mas ultimamente eu deixo sem som só pra ter certeza de que não estou te ignorando.$16",
+  "preDatingPcSide6.Sebastian.8": "Ahm... você tá precisando de alguma coisa ou só veio travar o meu cérebro mesmo?$16#$b#Porque se a missão era me deixar sem saber o que digitar, parabéns, funcionou perfeitamente.$l",
+  "preDatingPcSide6.Sebastian.9": "@... se você continuar me encarando com esse olhar, eu vou ser obrigado a fechar o programa.#$b#...É fisicamente impossível compilar qualquer ideia com você me provocando assim em silêncio.$l",
+  "preDatingPcSide6.Sebastian.10": "Minhas orelhas estão vermelhas de novo, não estão? O reflexo no monitor me entregou.$25#$b#...Você tem um talento pra me deixar sem jeito só de me encarar sem dizer uma única palavra.$l",
+
+  "preDatingPcSide8.Sebastian.1": "Você... tirou um tempo do seu trabalho só pra vir aqui me ver?$16#$b#...Isso, isso é bom. Eu fico feliz que você goste de passar tempo aqui comigo... olhando pra mim...$l",
+  "preDatingPcSide8.Sebastian.2": "Eu acabei de digitar uma sequência de caracteres que não faz o menor sentido.$h#$b#...Totalmente culpa sua por ficar me encarando tanto com essa expressão tão... doce.$l",
+  "preDatingPcSide8.Sebastian.3": "M-Meus dedos estão parados no teclado faz uns dois minutos.$25#$b#É impossível compilar qualquer linha coerente com você olhando tanto pro meu rosto, sabia?$l",
+  "preDatingPcSide8.Sebastian.4": "Ahm... @? A gente tá se olhando pelo reflexo da tela faz um bom tempo.$20#$b#Isso devia ser menos constrangedor do que olhar diretamente pra você, mas de algum jeito não é.$16",
+  "preDatingPcSide8.Sebastian.5": "Você deixou as suas tarefas de lado só pra ser a minha plateia VIP hoje?$28#$b#...Sorte sua que eu gosto da sua presença, senão já teria reclamado da invasão de espaço.$h",
+  "preDatingPcSide8.Sebastian.6": "...Dá pra ver o reflexo do seu sorrisinho no canto do meu monitor.$16#$b#...Você sabe exatamente o efeito que causa em mim me olhando desse jeito, né?$l",
+  "preDatingPcSide8.Sebastian.7": "Saber que você tirou uma pausa só pra vir me ver e observar o meu trabalho...$16#$b#...Faz meu peito aquecer de um jeito ridículo. Você me deixou totalmente mal-acostumado.$h",
+  "preDatingPcSide8.Sebastian.8": "Dá pra sentir a minha orelha esquentando. E não é por causa do aquecedor do meu quarto.$16#$b#...Se você continuar me encarando assim em silêncio, eu vou acabar achando que... uh. Deixa pra lá.$l",
+  "preDatingPcSide8.Sebastian.9": "Eu costumo ser muito metódico com os meus horários.#$b#...Mas perceber que você pausou o seu dia só pra ficar me observando trabalhar meio que... bagunçou toda a minha lógica.$l",
+  "preDatingPcSide8.Sebastian.10": "U-Uh... @, tem algum motivo específico pra você estar me olhando tanto hoje?$16#$b#...É que sustentar essa sua atenção toda sem ficar gaguejando tá exigindo muito da minha 'CPU mental'.$l",
+
+  "DatingPcSide8.Sebastian.1": "Como minha namorada, você devia apoiar minha produtividade, não destruir ela me encarando desse jeito.$h#$b#...Mas vem cá, deita no meu ombro. Acho que consigo digitar com uma mão e te fazer carinho no cabelo com a outra mão.$l",
+  "DatingPcSide8.Sebastian.2": "Um, @... minha mão esquerda tá livre sabe, caso você... uh, queira segurar.$16#$b#...Eu consigo me virar só com uma mão por um tempo. N-Não que eu esteja implorando por carinho, mas... é uma opção.$l",
+  "DatingPcSide8.Sebastian.3": "A gente já tá namorando faz um tempo, então jurei que ia parar de corar com você me inspecionando trabalhar.$l#$b#...Mas claramente eu ainda superaqueço com você tão perto.$h",
+  "DatingPcSide8.Sebastian.4": "Você parada aí do lado em silêncio... tá esperando eu terminar de compilar pra eu te dar atenção?$28#$b#...Não precisa esperar. Senta aqui do meu lado, eu consigo trabalhar e te dar atenção ao mesmo tempo.$h",
+  "DatingPcSide8.Sebastian.5": "Eu passo o dia lidando com lógica pura, mas tentar entender porque você gosta tanto de me ver trabalhando...#$b#...É um mistério que meu cérebro ainda não conseguiu resolver. Mas eu amo que seja assim.$l",
+  "DatingPcSide8.Sebastian.6": "Ahm, @... você não precisa ficar me olhando tanto em silêncio.#$b#...Se você sentar aqui do meu lado, eu deixo você, uh... me abraçar o quanto quiser.$16#$b#...Ou quem sabe me roubar alguns beijos? Não seria uma má ideia também.$l",
+  "DatingPcSide8.Sebastian.7": "Ahm... se você quiser se apoiar em mim e me abraçar enquanto eu leio isso, eu não vou reclamar.$16#$b#...Só avisei pra caso você esteja cansada de ficar aí de pé. É puramente prático, heh.$l",
+  "DatingPcSide8.Sebastian.8": "Ótimo, acabei de introduzir um bug crítico no sistema porque me perdi olhando o seu reflexo na tela.$18#$b#...A punição justa é você me beijar até eu esquecer o estresse do trabalho.$11",
+  "DatingPcSide8.Sebastian.9": "Heh, você fica me rondando igual um gato querendo carinho, mas não fala nada.$28#$b#...Chega mais perto... eu deixo você atrapalhar o meu cronograma o quanto precisar.$l",
+  "DatingPcSide8.Sebastian.10": "Ficar me encarando em silêncio enquanto eu trabalho me deixa um tanto... ansioso.$16#$b#...Eu fico sem saber se continuo codificando ou se te puxo para o meu colo... talvez dê pra fazer os dois.$l",
+
+  "preDatingPcSideAfterLeave6.Sebastian.1": "*respira fundo*",
+  "preDatingPcSideAfterLeave6.Sebastian.2": "Tá... foco.",
+  "preDatingPcSideAfterLeave6.Sebastian.3": "Onde eu estava mesmo?",
+  "preDatingPcSideAfterLeave6.Sebastian.4": "*suspira*",
+  "preDatingPcSideAfterLeave6.Sebastian.5": "*suspira baixinho*",
+
+  "preDatingPcSideAfterLeave8.Sebastian.1": "*suspira*",
+  "preDatingPcSideAfterLeave8.Sebastian.2": "A gente... se vê depois?",
+  "preDatingPcSideAfterLeave8.Sebastian.3": "Pode ficar um pouco mais.",
+  "preDatingPcSideAfterLeave8.Sebastian.4": "N-Não precisa ir embora agora.",
+  "preDatingPcSideAfterLeave8.Sebastian.5": "*respira fundo*",
+
+  "DatingPcSideAfterLeave8.Sebastian.1": "Ei... fica mais um pouco.",
+  "DatingPcSideAfterLeave8.Sebastian.2": "*rindo baixinho*",
+  "DatingPcSideAfterLeave8.Sebastian.3": "Passa aqui depois, pra ficarmos juntos.",
+  "DatingPcSideAfterLeave8.Sebastian.4": "...Já tá indo embora?",
+  "DatingPcSideAfterLeave8.Sebastian.5": "...Vem me ver depois, tá?"
+}
+
+  
+
