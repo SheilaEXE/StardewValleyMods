@@ -1,0 +1,99 @@
+{
+  "FormatVersion": 1,
+  "Description": "Special item reaction definitions for Outfit Reactions. These entries define outfit pieces (clothing, accessories, or mod-added items worn as hats) that should trigger specific, context-aware NPC reactions beyond generic outfit praise.",
+  "DefaultLanguage": "en",
+  "GlobalRules": [
+    "If the current item matches one of these entries, this is not a generic outfit reaction. The NPC should react to the item specifically, in their own voice.",
+    "Use the NPC's personality, relationship level, location, and current context to shape the reaction, but never turn these underwear items into romantic attraction: intimate means private and embarrassing here, not seductive.",
+    "Do not mention technical labels, JSON keys, entry IDs, or file names in dialogue.",
+    "NpcOverrides take absolute priority over the general ReactionHint when present for the current NPC."
+  ],
+  "Items": {
+    "MayorsPurpleShorts": {
+      "DisplayName": "Mayor's Purple Shorts",
+      "MatchNames": [
+        "Mayor's Purple Shorts",
+        "Lucky Purple Shorts",
+        "Trimmed Lucky Purple Shorts",
+        "Purple Shorts",
+        "Mayor's Shorts"
+      ],
+      "MatchIds": [
+        "(P)15",
+        "15"
+      ],
+      "ItemType": "Pants",
+      "ReactionPriority": "VeryHigh",
+      "CoreDescription": "A pair of bright purple underwear-style shorts that look unmistakably personal and intimate — the kind of garment someone keeps very private, not something anyone would expect to see a farmer parading around town in.",
+      "ReactionHint": "React to the farmer wearing what looks like someone's personal intimate underwear as outerwear. This is embarrassing, absurd, and hard to politely ignore. The NPC does not know whose underwear it is — just that it looks deeply personal and very out of place. Reactions may range from awkward amusement to blunt disgust, scandalized disbelief, secondhand embarrassment, or concern depending on personality. Never frame the farmer as attractive, sexy, seductive, or desirable because of these shorts, even for a romantic partner.",
+      "SecretId": "MayorsShortsSecret",
+      "SecretRevealMessage": "[The player just revealed to the NPC that these bright purple shorts are Mayor Lewis's personal underwear — and that they were found in Marnie's bedroom, where they absolutely should not have been.]",
+      "SecretReactionHint": "The NPC now knows these are Mayor Lewis's personal underwear — found in Marnie's bedroom. React to the full scandal: the farmer is wearing the mayor's intimate underwear. This is mortifying, hilarious, or shocking depending on personality and relationship with Lewis and Marnie, never romantically or sexually attractive.",
+      "NpcOverrides": {
+        "Lewis": {
+          "ScriptedDialogueKeys": {
+            "Escape": [ "Lewis-shorts-escape.1", "Lewis-shorts-escape.2", "Lewis-shorts-escape.3", "Lewis-shorts-escape.4", "Lewis-shorts-escape.5" ],
+            "Confiscated": [ "Lewis-shorts-confiscated.1", "Lewis-shorts-confiscated.2", "Lewis-shorts-confiscated.3", "Lewis-shorts-confiscated.4", "Lewis-shorts-confiscated.5" ],
+            "Escaped": [ "Lewis-shorts-escaped.1", "Lewis-shorts-escaped.2", "Lewis-shorts-escaped.3", "Lewis-shorts-escaped.4", "Lewis-shorts-escaped.5" ]
+          },
+          "KnowsSecretByDefault": true,
+          "ReactionHint": "Lewis immediately recognizes these as HIS personal underwear. He is beyond furious and mortified — someone is walking around town wearing his most private garment. He wants them off immediately and will not discuss it calmly. He may demand to know where they were found while desperately trying to keep his composure.",
+          "SecretReactionHint": "Lewis sees his own intimate underwear being worn publicly and is at maximum fury and embarrassment. Even if the farmer reveals the full story, he only gets more desperate to end the situation immediately and shut down any further discussion."
+        },
+        "Marnie": {
+          "KnowsSecretByDefault": true,
+          "SecretRevealable": true,
+          "ReactionHint": "Marnie privately recognizes these as Lewis's underwear but plays completely dumb. She comments on the color in a suspiciously neutral way, suppresses obvious amusement, and changes the subject too quickly. She does NOT reveal the secret voluntarily.",
+          "SecretReactionHint": "Even if the farmer reveals everything — that these are Lewis's underwear found in her bedroom — Marnie denies all knowledge with a straight face, barely suppressing laughter she absolutely refuses to show."
+        }
+      }
+    },
+    "MayorsPurpleShortsHat": {
+      "DisplayName": "Mayor's Purple Shorts (Hat)",
+      "MatchNames": [
+        "Mayor's Purple Shorts Hat",
+        "Purple Shorts Hat",
+        "Mayor Shorts Hat",
+        "Shorts Hat"
+      ],
+      "ItemType": "Hat",
+      "ReactionPriority": "VeryHigh",
+      "CoreDescription": "A pair of bright purple underwear-style shorts being worn on the head as a hat. This is doubly absurd: not only does it look like someone's personal intimate underwear, but it is now being worn as headwear in public.",
+      "ReactionHint": "React to the farmer wearing what looks like someone's intimate personal underwear on their head. This is visually absurd on two levels — it looks like underwear AND it is being worn as a hat. The NPC does not know whose underwear it is. Reactions may range from horrified confusion to helpless laughter, secondhand embarrassment, or genuine concern depending on personality. Never frame the farmer as attractive, sexy, seductive, or desirable because of it, even for a romantic partner.",
+      "SecretId": "MayorsShortsSecret",
+      "SecretRevealMessage": "[The player just revealed to the NPC that the purple underwear being worn as a hat belongs to Mayor Lewis — and that it was found in Marnie's bedroom, where it absolutely should not have been.]",
+      "SecretReactionHint": "The NPC now knows the underwear on the farmer's head belongs to Mayor Lewis, found in Marnie's bedroom. The situation is even more absurd: the farmer is wearing the mayor's personal intimate underwear as a hat. React to this full scandal shaped entirely by personality, never as romantic or sexual attraction.",
+      "NpcOverrides": {
+        "Lewis": {
+          "ScriptedDialogueKeys": {
+            "Escape": [ "Lewis-shorts-escape.1", "Lewis-shorts-escape.2", "Lewis-shorts-escape.3", "Lewis-shorts-escape.4", "Lewis-shorts-escape.5" ],
+            "Confiscated": [ "Lewis-shorts-confiscated.1", "Lewis-shorts-confiscated.2", "Lewis-shorts-confiscated.3", "Lewis-shorts-confiscated.4", "Lewis-shorts-confiscated.5" ],
+            "Escaped": [ "Lewis-shorts-escaped.1", "Lewis-shorts-escaped.2", "Lewis-shorts-escaped.3", "Lewis-shorts-escaped.4", "Lewis-shorts-escaped.5" ]
+          },
+          "KnowsSecretByDefault": true,
+          "ReactionHint": "Lewis recognizes his own intimate underwear being worn on the farmer's HEAD in public. He is beyond furious and absolutely mortified — this is the worst possible outcome. He wants them off immediately and is horrified that anyone might see this.",
+          "SecretReactionHint": "Lewis sees his own personal underwear on the farmer's head and is at maximum fury. Even if the farmer reveals the full story, he only gets more desperate to end the situation and will not discuss it calmly under any circumstances."
+        },
+        "Marnie": {
+          "KnowsSecretByDefault": true,
+          "SecretRevealable": true,
+          "ReactionHint": "Marnie recognizes the underwear immediately but pretends she has no idea what they are. She comments on the absurdity of wearing underwear as a hat in a suspiciously flustered way, visibly losing control of her laughter.",
+          "SecretReactionHint": "Even with the farmer revealing everything, Marnie denies all knowledge while visibly failing to keep a straight face about the fact that Lewis's underwear is now on someone's head in public."
+        }
+      },
+      "ConditionalMatchNames": [
+        {
+          "RequiredModId": "PakRT.MayorsShorts13",
+          "MatchIds": [
+            "(H)39",
+            "39"
+          ],
+          "MatchNames": [
+            "Lucky Purple Short",
+            "39"
+          ]
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "Name": "Outfit Reactions",
+  "Author": "NatrollEXE",
+  "Version": "1.0.0-beta.1",
+  "Description": "Now, NPCs will react to your appearance whenever you change outfits using the Fashion Sense mod.",
+  "UniqueID": "NatrollEXE.OutfitReactions",
+  "EntryDll": "OutfitReactions.dll",
+  "MinimumApiVersion": "4.0.0",
+  "UpdateKeys": ["Nexus:47172"],
+  "Dependencies": [
+    {
+      "UniqueID": "PeacefulEnd.FashionSense",
+      "IsRequired": true,
+      "MinimumVersion": "7.5.0"
+    },
+    {
+      "UniqueID": "spacechase0.GenericModConfigMenu",
+      "IsRequired": false
+    },
+    {
+      "UniqueID": "NatrollEXE.TileMarker",
+      "IsRequired": false
+    }
+  ]
+}

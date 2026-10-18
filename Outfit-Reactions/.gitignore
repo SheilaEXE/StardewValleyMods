@@ -1,0 +1,38 @@
+# Build outputs
+[Bb]in/
+[Oo]bj/
+*.dll
+*.pdb
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Rider / JetBrains
+.idea/
+
+# VS Code
+.vscode/
+
+# SMAPI mod deploy folders sometimes created alongside the project
+Mods/
+
+# Release packages — the compiled/zipped mod is not tracked, only source
+*.zip
+release/
+Releases/
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Local secrets/config that should never be committed
+*.local.json
+OutfitReactions.local.props
+.tools/
+.recovered-dll/
+recovery-current/
+recovery-modentry/
