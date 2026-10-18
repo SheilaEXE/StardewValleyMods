@@ -1,0 +1,20 @@
+{
+  "Name": "Home Sweet Home: Spouse Dialogues",
+  "Author": "NatrollEXE",
+  "Version": "1.0.0",
+  "Description": "Adds seasonal at-home spouse dialogue and gifts.",
+  "UniqueID": "NatrollEXE.HomeSweetHomeSpouseDialogues",
+  "EntryDll": "HomeSweetHomeSpouseDialogues.dll",
+  "MinimumApiVersion": "4.0.0",
+  "UpdateKeys": [],
+  "Dependencies": [
+    {
+      "UniqueID": "Pathoschild.ContentPatcher",
+      "IsRequired": true
+    },
+    {
+      "UniqueID": "spacechase0.GenericModConfigMenu",
+      "IsRequired": false
+    }
+  ]
+}

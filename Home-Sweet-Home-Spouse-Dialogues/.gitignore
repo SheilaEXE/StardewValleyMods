@@ -1,0 +1,5 @@
+bin/
+obj/
+.vs/
+_legacy_install_backup/
+*.user

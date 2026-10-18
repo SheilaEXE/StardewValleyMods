@@ -1,0 +1,22 @@
+{
+  "Name": "Home Sweet Home: Spouse Dialogues - Content Pack",
+  "Author": "NatrollEXE",
+  "Version": "1.0.0",
+  "Description": "Adds the custom drinks and Tile Marker sink interaction used by Home Sweet Home: Spouse Dialogues.",
+  "UniqueID": "NatrollEXE.HomeSweetHomeSpouseDialogues.ContentPack",
+  "MinimumApiVersion": "4.0.0",
+  "ContentPackFor": {
+    "UniqueID": "Pathoschild.ContentPatcher"
+  },
+  "Dependencies": [
+    {
+      "UniqueID": "NatrollEXE.HomeSweetHomeSpouseDialogues",
+      "IsRequired": true
+    },
+    {
+      "UniqueID": "NatrollEXE.TileMarker",
+      "MinimumVersion": "1.1.0",
+      "IsRequired": true
+    }
+  ]
+}

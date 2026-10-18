@@ -1,0 +1,123 @@
+{
+  "Changes": [
+    {
+      "Action": "EditData",
+      "Target": "Data/Objects",
+      "Entries": {
+        "SiL.IcedWaterCup": {
+          "Name": "IcedWaterCup",
+          "DisplayName": "Copo com Água Gelada",
+          "Description": "Um copo de água bem gelada. Simples, refrescante e revigorante.",
+          "Type": "Cooking",
+          "Category": -7,
+          "Price": 80,
+          "Texture": "Mods/NatrollEXE.HomeSweetHomeSpouseDialogues.ContentPack/Objects",
+          "SpriteIndex": 0,
+          "Edibility": 10,
+          "IsDrink": true
+        },
+        "SiL.IcedWaterBottle": {
+          "Name": "IcedWaterBottle",
+          "DisplayName": "Garrafa com Água Gelada",
+          "Description": "Uma garrafa de água bem gelada. Perfeita para se refrescar em dias quentes.",
+          "Type": "Cooking",
+          "Category": -7,
+          "Price": 120,
+          "Texture": "Mods/NatrollEXE.HomeSweetHomeSpouseDialogues.ContentPack/Objects",
+          "SpriteIndex": 1,
+          "Edibility": 25,
+          "IsDrink": true
+        },
+        "SiL.IcedCoffeeCup": {
+          "Name": "IcedCoffeeCup",
+          "DisplayName": "Café Gelado",
+          "Description": "Um café gelado forte e refrescante. Perfeito para dar energia nos dias quentes.",
+          "Type": "Cooking",
+          "Category": -7,
+          "Price": 180,
+          "Texture": "Mods/NatrollEXE.HomeSweetHomeSpouseDialogues.ContentPack/Objects",
+          "SpriteIndex": 2,
+          "Edibility": 15,
+          "IsDrink": true
+        },
+        "SiL.CreamCoffeeCup": {
+          "Name": "CreamCoffeeCup",
+          "DisplayName": "Xícara de Café com Creme",
+          "Description": "Uma xícara de café quentinho coberto com creme suave.",
+          "Type": "Cooking",
+          "Category": -7,
+          "Price": 220,
+          "Texture": "Mods/NatrollEXE.HomeSweetHomeSpouseDialogues.ContentPack/Objects",
+          "SpriteIndex": 3,
+          "Edibility": 25,
+          "IsDrink": true
+        },
+        "SiL.HomemadeShake": {
+          "Name": "HomemadeShake",
+          "DisplayName": "Shake Caseiro",
+          "Description": "Um shake protéico cremoso e geladinho.",
+          "Type": "Cooking",
+          "Category": -7,
+          "Price": 200,
+          "Texture": "Mods/NatrollEXE.HomeSweetHomeSpouseDialogues.ContentPack/Objects",
+          "SpriteIndex": 4,
+          "Edibility": 40,
+          "IsDrink": true
+        },
+        "SiL.RedBerryShake": {
+          "Name": "RedBerryShake",
+          "DisplayName": "Shake de Frutas Vermelhas",
+          "Description": "Um shake geladinho e cremoso feito com frutas vermelhas.",
+          "Type": "Cooking",
+          "Category": -7,
+          "Price": 230,
+          "Texture": "Mods/NatrollEXE.HomeSweetHomeSpouseDialogues.ContentPack/Objects",
+          "SpriteIndex": 5,
+          "Edibility": 40,
+          "IsDrink": true
+        },
+        "SiL.BlackberryShake": {
+          "Name": "BlackberryShake",
+          "DisplayName": "Shake de Amora",
+          "Description": "Um shake saudável de amoras bem cremoso.",
+          "Type": "Cooking",
+          "Category": -7,
+          "Price": 240,
+          "Texture": "Mods/NatrollEXE.HomeSweetHomeSpouseDialogues.ContentPack/Objects",
+          "SpriteIndex": 6,
+          "Edibility": 40,
+          "IsDrink": true
+        }
+      }
+    },
+    {
+      "Action": "Load",
+      "Target": "Mods/NatrollEXE.HomeSweetHomeSpouseDialogues.ContentPack/Objects",
+      "FromFile": "assets/Objects.png"
+    },
+    {
+      "Action": "EditData",
+      "Target": "Data/Shops",
+      "TargetField": [ "SeedShop", "Items" ],
+      "Entries": {
+        "NatrollEXE_HomeSweetHome_IcedWaterBottle_Pierre": {
+          "Id": "NatrollEXE_HomeSweetHome_IcedWaterBottle_Pierre",
+          "ItemId": "(O)SiL.IcedWaterBottle",
+          "Price": 50
+        }
+      }
+    },
+    {
+      "Action": "EditData",
+      "Target": "Data/Shops",
+      "TargetField": [ "Saloon", "Items" ],
+      "Entries": {
+        "NatrollEXE_HomeSweetHome_IcedWaterBottle_Gus": {
+          "Id": "NatrollEXE_HomeSweetHome_IcedWaterBottle_Gus",
+          "ItemId": "(O)SiL.IcedWaterBottle",
+          "Price": 50
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,92 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <AssemblyName>HomeSweetHomeSpouseDialogues</AssemblyName>
+    <RootNamespace>HomeSweetHomeSpouseDialogues</RootNamespace>
+    <Version>1.0.0</Version>
+
+    <Nullable>annotations</Nullable>
+    <TargetFramework>net6.0</TargetFramework>
+
+    <EnableModDeploy>false</EnableModDeploy>
+    <EnableModZip>false</EnableModZip>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Pathoschild.Stardew.ModBuildConfig" Version="4.4.0" />
+  </ItemGroup>
+
+  <Target Name="CopyModToStardewMods" AfterTargets="Build">
+    <PropertyGroup>
+      <StardewModsDir Condition="'$(StardewModsDir)' == ''">C:\Program Files (x86)\Steam\steamapps\common\Stardew Valley\Mods\</StardewModsDir>
+      <HomeSweetHomeRootDir>$(StardewModsDir)Home Sweet Home - Spouse Dialogues\</HomeSweetHomeRootDir>
+      <ModDeployDir>$(HomeSweetHomeRootDir)Home Sweet Home - Spouse Dialogues\</ModDeployDir>
+    </PropertyGroup>
+
+    <MakeDir Directories="$(HomeSweetHomeRootDir)" />
+    <MakeDir Directories="$(ModDeployDir)" />
+
+    <!-- Limpa APENAS arquivos que builds antigos podem ter colocado na pasta mãe:
+         Mods\Home Sweet Home - Spouse Dialogues\
+
+         Isso não apaga:
+         - Mods\Home Sweet Home - Spouse Dialogues\Home Sweet Home - Spouse Dialogues\i18n\
+         - Mods\Home Sweet Home - Spouse Dialogues\[CP] Home Sweet Home - Spouse Dialogues\
+    -->
+    <Delete
+      Files="$(HomeSweetHomeRootDir)HomeSweetHomeSpouseDialogues.dll;$(HomeSweetHomeRootDir)HomeSweetHomeSpouseDialogues.pdb;$(HomeSweetHomeRootDir)HomeSweetHomeSpouseDialogues.deps.json;$(HomeSweetHomeRootDir)manifest.json;$(HomeSweetHomeRootDir)config.json;$(HomeSweetHomeRootDir)README - dialog keys.txt"
+      TreatErrorsAsWarnings="true" />
+
+    <Copy
+      SourceFiles="$(TargetPath)"
+      DestinationFiles="$(ModDeployDir)$(TargetFileName)"
+      SkipUnchangedFiles="true" />
+
+    <Copy
+      SourceFiles="$(TargetDir)$(AssemblyName).pdb"
+      DestinationFiles="$(ModDeployDir)$(AssemblyName).pdb"
+      Condition="Exists('$(TargetDir)$(AssemblyName).pdb')"
+      SkipUnchangedFiles="true" />
+
+    <Copy
+      SourceFiles="manifest.json"
+      DestinationFiles="$(ModDeployDir)manifest.json"
+      SkipUnchangedFiles="true" />
+
+    <ItemGroup>
+      <ReadmeFiles Include="*.txt" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <TranslationFiles Include="i18n\**\*.json" />
+    </ItemGroup>
+
+    <!-- Diálogos são traduções do mod C#; cada idioma tem seu próprio JSON em i18n\. -->
+    <Copy
+      SourceFiles="@(TranslationFiles)"
+      DestinationFiles="@(TranslationFiles->'$(ModDeployDir)i18n\%(RecursiveDir)%(Filename)%(Extension)')"
+      SkipUnchangedFiles="true" />
+
+    <Copy
+      SourceFiles="@(ReadmeFiles)"
+      DestinationFiles="@(ReadmeFiles->'$(ModDeployDir)%(Filename)%(Extension)')"
+      SkipUnchangedFiles="true" />
+
+    <!-- Se você colocar a pasta [CP] Home Sweet Home - Spouse Dialogues dentro da pasta do projeto,
+         o build também copia ela para a pasta mãe correta.
+         Se ela só existir dentro de Mods, nada será mexido. -->
+    <ItemGroup Condition="Exists('[CP] Home Sweet Home - Spouse Dialogues')">
+      <ContentPackFiles Include="[CP] Home Sweet Home - Spouse Dialogues\**\*" />
+    </ItemGroup>
+
+    <Copy
+      SourceFiles="@(ContentPackFiles)"
+      DestinationFiles="@(ContentPackFiles->'$(HomeSweetHomeRootDir)[CP] Home Sweet Home - Spouse Dialogues\%(RecursiveDir)%(Filename)%(Extension)')"
+      Condition="Exists('[CP] Home Sweet Home - Spouse Dialogues')"
+      SkipUnchangedFiles="true" />
+
+    <Message Importance="high" Text="Home Sweet Home: Spouse Dialogues copiado para: $(ModDeployDir)" />
+    <Message Importance="high" Text="A pasta CP esperada é: $(HomeSweetHomeRootDir)[CP] Home Sweet Home - Spouse Dialogues\" />
+  </Target>
+
+</Project>

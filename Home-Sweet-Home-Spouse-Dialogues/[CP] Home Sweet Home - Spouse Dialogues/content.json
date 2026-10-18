@@ -1,0 +1,28 @@
+{
+  "Format": "2.9.0",
+  "Changes": [
+    {
+      "LogName": "Bebidas geladas",
+      "Action": "Include",
+      "FromFile": "code/drinks/drinks.json"
+    },
+    {
+      "LogName": "Pias para pegar água",
+      "Action": "EditData",
+      "Target": "Mods/NatrollEXE.TileMarker/Categories",
+      "Entries": {
+        "NatrollEXE.HomeSweetHomeSpouseDialogues/WaterSinks": {
+          "DisplayName": "{{i18n:tile-marker.water-sinks}}",
+          "Interaction": {
+            "Button": "{{NatrollEXE.HomeSweetHomeSpouseDialogues/WaterSinkButton}}",
+            "Target": "Facing",
+            "SuppressButton": true,
+            "Actions": [
+              "AddItem (O)SiL.IcedWaterCup 1"
+            ]
+          }
+        }
+      }
+    }
+  ]
+}
