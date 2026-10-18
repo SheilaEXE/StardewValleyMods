@@ -1,0 +1,1192 @@
+using Microsoft.Xna.Framework;
+using StardewModdingAPI;
+using StardewValley;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace LotsOfKisses
+{
+    public partial class ModEntry
+    {
+        // Give a multi-kiss time to become noticeable naturally. The first audience scan
+        // happens only after the third kiss cycle has fully completed.
+        private const int BystanderNoticeMinimumCompletedCycles = 3;
+
+        // ── Constants ────────────────────────────────────────────────────────
+
+        /// <summary>Chance (0–1) per bystander of noticing the kiss, per tier.</summary>
+        private static readonly double[] BystanderNoticeChance = { 0.30, 0.60, 0.90 };
+
+        /// <summary>Chance (0–1) that a noticing bystander plays a reaction emote.</summary>
+        private const double BystanderEmoteChance = 0.15;
+
+        private static readonly int[] AdultBystanderEmotes = { 28, 60, 20 };
+        private static readonly int[] ChildBystanderEmotes = { 28, 16 };
+
+        /// <summary>Chance (0–1) that a noticing bystander says a crowd reaction line above their head.</summary>
+        private const double CrowdReactionLineChance = 0.10;
+
+        /// <summary>
+        /// Max number of bystanders allowed to have a crowd-reaction speech bubble open at the
+        /// same time, so a big crowd doesn't spam half a dozen bubbles across the screen at once.
+        /// Others simply keep re-rolling their own independent chance each cycle (gated by their
+        /// own cooldown) until a slot opens up — there's no explicit queue, just an open slot.
+        /// </summary>
+        private const int MaxConcurrentCrowdReactionSpeakers = 2;
+
+        /// <summary>Ticks to wait after the public multi-kiss dialogue closes / kiss scene ends before releasing bystanders.</summary>
+        private const int BystanderRestoreDelayTicks = 120; // ~2s
+
+        /// <summary>Safety timeout so bystanders never stay paused forever if the kiss/dialogue state changes unexpectedly.</summary>
+        private const int BystanderRestoreSafetyTicks = 600; // ~10s
+
+        /// <summary>
+        /// Tiny pause refreshed while a bystander is intentionally watching.
+        /// This mirrors the outdoor bump-kiss hold: don't kill controller, just keep a short pause alive.
+        /// </summary>
+        private const int BystanderHoldPauseTicks = 6;
+
+        /// <summary>
+        /// Ticks to wait after a bystander starts turning (faceGeneralDirection/faceDirection) before
+        /// playing their reaction emote. Both turn calls are gradual, not instant, so firing the emote
+        /// in the same tick makes it look like the NPC reacts before actually looking at the player.
+        /// </summary>
+        private const int BystanderEmoteTurnDelayTicks = 35; // ~0.6s, comfortable margin for the turn to visibly complete
+
+        // Cross-mod flag written into the bystander NPC's own modData while they are turned to
+        // watch a public multi-kiss. Other mods (e.g. Outfit Reactions) can check this key on the
+        // NPC to skip starting their own reactions on that NPC during the audience moment, without
+        // any hard dependency or load-order requirement between the mods.
+        private const string BystanderWatchingModDataKey = "NatrollEXE.LotsOfKisses/BystanderWatching";
+
+        // ── State ────────────────────────────────────────────────────────────
+
+        private readonly List<BystanderSnapshot> activeBystanderSnapshots = new();
+
+        /// <summary>How many bystanders currently have a crowd-reaction bubble open right now.</summary>
+        private int activeCrowdReactionSpeakerCount = 0;
+
+        /// <summary>
+        /// Per-NPC set of crowd-reaction dialogue keys (e.g. "ReactionAbigail.3") already shown
+        /// this session, so the same line doesn't repeat for that NPC — a fresh one is picked each
+        /// time until the whole pool has been used, then it cycles back around instead of going
+        /// silent forever.
+        /// </summary>
+        private readonly Dictionary<string, HashSet<string>> usedCrowdReactionKeysByNpc = new();
+
+        private sealed class BystanderRestoreState
+        {
+            public bool IsPending;
+            public bool CountdownStarted;
+            public int Timer;
+            public int SafetyTimer;
+            public NPC Partner;
+            public bool ForceStart;
+        }
+
+        private readonly BystanderRestoreState bystanderRestore = new();
+
+        // ── Public entry points ───────────────────────────────────────────────
+
+        /// <summary>
+        /// Called when a public multi-kiss cycle completes. Scans visible NPCs,
+        /// saves their state, turns them toward the player, and maybe plays an emote.
+        /// </summary>
+        internal void TriggerBystanderReactions(int kissTier, NPC partner)
+        {
+            if (Game1.currentLocation == null || Game1.player == null)
+                return;
+
+            string locName = Game1.currentLocation.Name;
+            if (locName == "Farm" || locName == "FarmHouse")
+                return;
+
+            if (IsPrivateKissMoment(partner))
+                return;
+
+            int tierIndex = Math.Clamp(kissTier - 1, 0, BystanderNoticeChance.Length - 1);
+            double noticeChance = BystanderNoticeChance[tierIndex];
+
+            foreach (NPC npc in Game1.currentLocation.characters)
+            {
+                if (npc == null)
+                    continue;
+
+                // GameLocation.characters can also contain decorative animals and other
+                // environmental creatures implemented as NPC subclasses. Only social
+                // villagers (vanilla or properly configured custom NPCs) should react.
+                if (!npc.IsVillager)
+                    continue;
+
+                // Custom Companions implements decorative wildlife as NPC subclasses and may
+                // report them as villagers. They aren't social characters, so never turn, hold,
+                // emote, or give them crowd-reaction dialogue during a public kiss.
+                string npcAssemblyName = npc.GetType().Assembly.GetName().Name;
+                if (string.Equals(npcAssemblyName, "CustomCompanions", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                // Skip the romantic partner and any NPC already reacting.
+                if (IsCurrentSpouse(npc.Name) || IsDatingPartner(npc.Name))
+                    continue;
+
+                // Skip NPCs already in our snapshot list.
+                if (activeBystanderSnapshots.Exists(s => s.Npc == npc))
+                    continue;
+
+                float distance = DistanceToPlayer(npc);
+                bool wasMoving = npc.isMoving();
+                bool hadController = npc.controller != null;
+                bool isWalkingToward = IsNpcWalkingTowardPlayer(npc);
+
+                // NOTE: this used to also fold in hadController here. That seemed harmless at
+                // capture time, but WasPausedByMod is later used during restore to decide whether
+                // an NPC is a "route NPC" safe to release with just a movementPause reset instead
+                // of actually restoring CurrentAnimation/CurrentFrame. Stationary special poses
+                // (fishing, dancing with someone, sitting, washing dishes) often still have a
+                // non-null controller even while holding still — that's not an ongoing route
+                // vanilla will resume on its own, so folding hadController in here made
+                // WasPausedByMod=true for them too, silently skipping the real restore below and
+                // leaving them stuck in the idle "looking at player" frame forever. Only actual
+                // movement should count as "route".
+                bool wasRouteNpc = wasMoving || isWalkingToward;
+
+                // No matter how a bystander qualifies below, they must actually be able to see
+                // the player — an NPC behind a wall or in a separate room of the same
+                // GameLocation (e.g. Pierre behind the shop counter) shouldn't react at all,
+                // even if they're technically "on screen" or walking in the player's direction.
+                if (!HasLineOfSightToPlayer(npc))
+                    continue;
+
+                // NPCs walking toward the player within 600f stop to watch — no chance roll needed.
+                // Other NPCs on screen need to pass the notice chance roll.
+                bool forceReact = isWalkingToward && distance <= 600f;
+                if (!forceReact)
+                {
+                    if (!IsNpcOnScreen(npc))
+                        continue;
+
+                    if (random.NextDouble() >= noticeChance)
+                        continue;
+                }
+
+                // Save state. We don't touch controller/queued paths; bystanders use the same gentle
+                // hold idea as the partner's outside bump-kiss pause.
+                var snapshot = new BystanderSnapshot
+                {
+                    DebugId         = GetNextDebugSnapshotId(),
+                    Npc              = npc,
+                    Location         = npc.currentLocation,
+                    Position         = npc.Position,
+                    FacingDirection  = npc.FacingDirection,
+                    CurrentFrame     = npc.Sprite.CurrentFrame,
+                    CurrentAnimation = npc.Sprite.CurrentAnimation != null
+                                       ? new List<FarmerSprite.AnimationFrame>(npc.Sprite.CurrentAnimation)
+                                       : null,
+                    Flip             = npc.flip,
+                    MovementPause    = (int)npc.movementPause,
+                    HadController    = hadController,
+                    WasMoving        = wasMoving,
+                    WasWalkingTowardPlayer = isWalkingToward,
+                    WasPausedByMod   = wasRouteNpc,
+                };
+
+                activeBystanderSnapshots.Add(snapshot);
+
+                // Mark this NPC as watching so other mods (e.g. Outfit Reactions) can skip
+                // starting their own reactions on them until they're released below.
+                npc.modData[BystanderWatchingModDataKey] = "1";
+
+                HoldBystanderWatching(snapshot);
+
+                string behavior = snapshot.SavedStartedEndOfRouteBehavior;
+                string classification = snapshot.WasPausedByMod
+                    ? "route"
+                    : !string.IsNullOrEmpty(behavior)
+                        ? "fishing-special-action"
+                        : snapshot.CurrentAnimation?.Count > 0
+                            ? "special-animation"
+                            : "static-pose";
+                DebugLog("BYSTANDER", () =>
+                    $"Captured bystander snapshot #{snapshot.DebugId} ({classification}, distance={distance:0}, forced={forceReact}, " +
+                    $"savedPosition={snapshot.Position}, savedFacing={snapshot.FacingDirection}, savedFrame={snapshot.CurrentFrame}, " +
+                    $"savedAnimationFrames={snapshot.CurrentAnimation?.Count ?? 0}, endBehavior={behavior ?? "none"}): {DescribeNpcDebugState(npc)}."
+                );
+
+                // Roll the emote now, but don't play it yet — faceGeneralDirection/faceDirection take
+                // a few ticks to visually finish the turn. Stash it on the snapshot and let
+                // UpdateBystanderRestore's tick loop fire it once the NPC has actually turned.
+                if (random.NextDouble() < BystanderEmoteChance)
+                {
+                    int[] emotes = IsChildNpc(npc) ? ChildBystanderEmotes : AdultBystanderEmotes;
+                    snapshot.PendingEmote = emotes[random.Next(emotes.Length)];
+                    snapshot.PendingEmoteDelayTicks = BystanderEmoteTurnDelayTicks;
+                }
+
+            }
+
+            // Every bystander already watching — whether they just noticed above or noticed on a
+            // previous kiss cycle — gets an independent 10% roll for a crowd reaction line, every cycle.
+            // Skipped while their previous line's speech bubble cooldown hasn't elapsed yet (see
+            // CrowdReactionCooldownTicks, decremented every real tick in TickCrowdReactionCooldowns).
+            foreach (var snapshot in activeBystanderSnapshots)
+            {
+                if (snapshot.CrowdReactionCooldownTicks > 0)
+                    continue;
+
+                TryShowCrowdReactionLine(snapshot);
+            }
+        }
+
+        /// <summary>
+        /// Decrements every active bystander's crowd-reaction cooldown by one real tick.
+        /// Must run every game update (60/sec), NOT once per kiss cycle — a kiss cycle only
+        /// lasts a fraction of a second, so ticking the cooldown there made it take ~150 cycles
+        /// to expire instead of ~2.5 real seconds, effectively silencing bystanders after their
+        /// first line for the rest of the kiss sequence.
+        /// </summary>
+        /// <summary>Real ticks over which the bubble fades out smoothly before closing (0.3s at 60 ticks/sec).</summary>
+        private const int CrowdReactionBubbleFadeTicks = 18;
+
+        private void TickCrowdReactionCooldowns()
+        {
+            foreach (var snapshot in activeBystanderSnapshots)
+            {
+                if (snapshot.CrowdReactionCooldownTicks > 0)
+                    snapshot.CrowdReactionCooldownTicks--;
+
+                if (snapshot.CrowdReactionBubbleCloseTicks > 0)
+                {
+                    snapshot.CrowdReactionBubbleCloseTicks--;
+
+                    // Ease the bubble's alpha down smoothly over the last CrowdReactionBubbleFadeTicks
+                    // ticks instead of snapping it to 0 in a single frame, so it visually fades out
+                    // the same way the game's own (pause-sensitive) timer would — just driven by our
+                    // own real-tick counter so it isn't stuck open during the paused valley.
+                    if (snapshot.CrowdReactionBubbleCloseTicks <= CrowdReactionBubbleFadeTicks)
+                    {
+                        float fadeProgress = snapshot.CrowdReactionBubbleCloseTicks / (float)CrowdReactionBubbleFadeTicks;
+                        SetSpeechBubbleAlpha(snapshot.Npc, fadeProgress);
+                    }
+
+                    if (snapshot.CrowdReactionBubbleCloseTicks == 0 && snapshot.Npc != null)
+                    {
+                        ForceCloseSpeechBubble(snapshot.Npc);
+
+                        // The bubble that was reserving this slot is now actually gone — free it
+                        // up so another waiting bystander can take their turn. Clamped at 0 as a
+                        // safety net in case of any bookkeeping edge case, so this can never go
+                        // negative and silently block every future reaction.
+                        activeCrowdReactionSpeakerCount = Math.Max(0, activeCrowdReactionSpeakerCount - 1);
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Returns whether at least one crowd-reaction speech bubble is still inside its
+        /// guaranteed three-second display window. This is intentionally based on the mod's
+        /// real-tick lifetime rather than the game's pause-sensitive textAboveHead timer.
+        /// </summary>
+        private bool HasActiveCrowdReactionSpeechBubble()
+        {
+            foreach (BystanderSnapshot snapshot in activeBystanderSnapshots)
+            {
+                if (snapshot?.Npc != null && snapshot.CrowdReactionBubbleCloseTicks > 0)
+                    return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Sets the NPC's speech bubble opacity directly (0 = invisible, 1 = fully visible),
+        /// using the same textAboveHeadAlpha field confirmed from the game's compiled metadata
+        /// that ForceCloseSpeechBubble zeroes out at the end of the fade.
+        /// </summary>
+        private void SetSpeechBubbleAlpha(NPC npc, float alpha)
+        {
+            TrySetNpcSpeechBubbleAlpha(npc, alpha);
+        }
+
+        /// <summary>
+        /// Clears the active bystander list AND releases the cross-mod watching flag from every
+        /// NPC still in it. Use this instead of calling activeBystanderSnapshots.Clear() directly
+        /// anywhere state is force-reset (day start, save load, warp, etc.) — otherwise an NPC could
+        /// be left with the watching flag stuck on them forever, since RestoreAllBystanders() would
+        /// never get a chance to run for them.
+        /// </summary>
+        private void ClearActiveBystanderSnapshots()
+        {
+            foreach (var snapshot in activeBystanderSnapshots)
+                snapshot?.Npc?.modData?.Remove(BystanderWatchingModDataKey);
+
+            activeBystanderSnapshots.Clear();
+
+            // Safety net: if this runs while some bystander's bubble was still open (an early/
+            // abrupt kiss-end path), their reserved slot would otherwise never get freed since
+            // TickCrowdReactionCooldowns will never see their snapshot again to decrement it.
+            activeCrowdReactionSpeakerCount = 0;
+        }
+
+        private void RestoreBystandersBeforeContextReset()
+        {
+            if (activeBystanderSnapshots.Count > 0)
+                RestoreAllBystanders();
+        }
+
+        /// <summary>
+        /// Schedules bystander restoration after the kiss/dialogue state clears, then waits two seconds.
+        /// </summary>
+        internal void ScheduleBystanderRestore(NPC partner = null)
+        {
+            if (activeBystanderSnapshots.Count == 0)
+                return;
+
+            bool wasAlreadyPending = bystanderRestore.IsPending;
+
+            bystanderRestore.IsPending = true;
+            bystanderRestore.CountdownStarted = false;
+            bystanderRestore.Timer = BystanderRestoreDelayTicks;
+            bystanderRestore.SafetyTimer = BystanderRestoreSafetyTicks;
+            bystanderRestore.Partner = partner;
+            if (!wasAlreadyPending)
+                DebugLog("BYSTANDER", $"Scheduled restore for {activeBystanderSnapshots.Count} bystander snapshot(s); partner={partner?.Name ?? "none"}, delay={BystanderRestoreDelayTicks}, safety={BystanderRestoreSafetyTicks} ticks.");
+        }
+
+        /// <summary>
+        /// Ticked every update. Keeps bystanders looking at the player while the scene is active,
+        /// then releases them two seconds after the publicMultiKiss dialogue closes / kiss ends.
+        /// Controller is intentionally never cleared here.
+        /// </summary>
+        internal void UpdateBystanderRestore()
+        {
+            if (activeBystanderSnapshots.Count == 0)
+                return;
+
+            // If something added snapshots but forgot to schedule the restore, schedule it anyway.
+            if (!bystanderRestore.IsPending)
+            {
+                bystanderRestore.IsPending = true;
+                bystanderRestore.CountdownStarted = false;
+                bystanderRestore.Timer = BystanderRestoreDelayTicks;
+                bystanderRestore.SafetyTimer = BystanderRestoreSafetyTicks;
+            }
+
+            if (bystanderRestore.SafetyTimer > 0)
+                bystanderRestore.SafetyTimer--;
+            else
+            {
+                DebugLog("BYSTANDER", $"Safety timeout reached; forcing restore of {activeBystanderSnapshots.Count} bystander snapshot(s).");
+                RestoreAllBystanders();
+                return;
+            }
+
+            KeepBystandersWatchingPlayer();
+
+            // If the kiss is still going, keep bystanders watching and reset the countdown.
+            if (continuousKissActive || continuousKissPendingRestart || IsPlayerSpouseKissActiveForLocalPlayer())
+            {
+                bystanderRestore.CountdownStarted = false;
+                bystanderRestore.Timer = BystanderRestoreDelayTicks;
+                return;
+            }
+
+            // If publicMultiKiss is on screen, wait until it closes. Once it closes, the two-second
+            // timer starts immediately; it doesn't wait for the partner's shy emote timer.
+            if (pendingPublicMultiKissShyEmote && (Game1.activeClickableMenu != null || Game1.dialogueUp))
+            {
+                bystanderRestore.CountdownStarted = false;
+                bystanderRestore.Timer = BystanderRestoreDelayTicks;
+                return;
+            }
+
+            bool partnerReleased = bystanderRestore.ForceStart
+                                || bystanderRestore.Partner == null
+                                || bystanderRestore.Partner.currentLocation != Game1.currentLocation
+                                || bystanderRestore.Partner.isMoving()
+                                || !IsKissSystemHoldingNpc(bystanderRestore.Partner);
+
+            if (!partnerReleased)
+            {
+                bystanderRestore.CountdownStarted = false;
+                bystanderRestore.Timer = BystanderRestoreDelayTicks;
+                return;
+            }
+
+            if (!bystanderRestore.CountdownStarted)
+            {
+                bystanderRestore.CountdownStarted = true;
+                bystanderRestore.Timer = BystanderRestoreDelayTicks;
+                DebugLog("BYSTANDER", $"Restore countdown started for {activeBystanderSnapshots.Count} bystander snapshot(s).");
+                return;
+            }
+
+            if (bystanderRestore.Timer > 0)
+            {
+                bystanderRestore.Timer--;
+                return;
+            }
+
+            RestoreAllBystanders();
+        }
+
+        // ── Internal helpers ──────────────────────────────────────────────────
+
+        private void KeepBystandersWatchingPlayer()
+        {
+            foreach (var snapshot in activeBystanderSnapshots)
+            {
+                HoldBystanderWatching(snapshot);
+                TickPendingBystanderEmote(snapshot);
+            }
+        }
+
+        /// <summary>
+        /// Counts down the bystander's turn-to-face delay and plays the stashed emote once it
+        /// finishes, so the NPC visibly looks at the player before reacting instead of emoting mid-turn.
+        /// </summary>
+        private void TickPendingBystanderEmote(BystanderSnapshot snapshot)
+        {
+            if (snapshot == null || snapshot.PendingEmote == null)
+                return;
+
+            NPC npc = snapshot.Npc;
+            if (npc == null || npc.currentLocation != Game1.currentLocation)
+            {
+                snapshot.PendingEmote = null;
+                return;
+            }
+
+            if (snapshot.PendingEmoteDelayTicks > 0)
+            {
+                snapshot.PendingEmoteDelayTicks--;
+                return;
+            }
+
+            npc.doEmote(snapshot.PendingEmote.Value);
+            snapshot.PendingEmote = null;
+        }
+
+        /// <summary>
+        /// True only for a bystander currently held mid-kiss AND whose snapshot has a captured
+        /// end-of-route behavior name (i.e. genuinely a fishing/special-pose NPC, not just any
+        /// bystander watching). Deliberately narrow — used only by the doMiddleAnimation Harmony
+        /// patch below, to suppress vanilla's own animation-rescheduling for these specific NPCs
+        /// during the hold window, without touching anything else about how bystanders work.
+        /// </summary>
+        internal bool IsHeldAsFishingBystander(NPC npc)
+        {
+            if (npc == null)
+                return false;
+
+            return activeBystanderSnapshots.Exists(s =>
+                s.Npc == npc
+                && !string.IsNullOrEmpty(s.SavedStartedEndOfRouteBehavior));
+        }
+
+        /// <summary>
+        /// Gets the current fishing route behavior only while the NPC is actually executing its
+        /// end-of-route action. <c>endOfRouteBehaviorName</c> can remain populated after that action
+        /// has ended (for example, Willy may still carry <c>dick_fish</c> while standing in the
+        /// Saloon), so the behavior name alone is not proof that fishing should be restored.
+        /// </summary>
+        private bool TryGetActiveFishingBehaviorName(NPC npc, out string behaviorName)
+        {
+            behaviorName = TryGetNetStringField(npc, "endOfRouteBehaviorName");
+            if (string.IsNullOrEmpty(behaviorName)
+                || behaviorName.IndexOf("fish", StringComparison.OrdinalIgnoreCase) < 0)
+            {
+                return false;
+            }
+
+            bool isDoingEndOfRouteAnimation = TryGetNetBoolField(npc, "doingEndOfRouteAnimation") == true;
+            bool isCurrentlyDoingEndOfRouteAnimation =
+                TryGetPrivateField(npc, "currentlyDoingEndOfRouteAnimation") is bool isCurrent && isCurrent;
+
+            return isDoingEndOfRouteAnimation || isCurrentlyDoingEndOfRouteAnimation;
+        }
+
+        private void HoldBystanderWatching(BystanderSnapshot snapshot)
+        {
+            if (snapshot == null || Game1.player == null)
+                return;
+
+            NPC npc = snapshot.Npc;
+            if (npc == null || npc.currentLocation != Game1.currentLocation)
+                return;
+
+            // NOTE: only actual movement counts as "route NPC" here — same fix as the capture
+            // classification above. HadController alone used to count too, but a stationary NPC
+            // doing a scripted activity (fishing, dancing with someone, sitting) can still have a
+            // non-null controller while standing still. Misclassifying them as "route NPCs" sent
+            // them through the gentle branch below, which never actually restores
+            // CurrentAnimation/CurrentFrame — leaving them stuck in the idle "looking at player"
+            // pose forever once the kiss ends, since nothing else was driving them to move.
+            bool wasRouteNpc = snapshot.WasPausedByMod
+                            || snapshot.WasMoving
+                            || snapshot.WasWalkingTowardPlayer;
+
+            // Route NPCs use the same gentle idea as UpdateOutsideBumpPause: turn visually toward
+            // the player and keep only a tiny refreshed pause. No Halt(), no controller clear, no
+            // schedule refresh. This is what lets walking NPCs resume normally afterward.
+            if (wasRouteNpc)
+            {
+                try
+                {
+                    npc.faceGeneralDirection(Game1.player.getStandingPosition(), 0, false, false);
+                }
+                catch
+                {
+                    npc.FacingDirection = GetDirectionTowardPlayer(npc);
+                }
+
+                // A walking NPC may have "fish" as its future end-of-route behavior, but is not
+                // yet in the fishing pose. Touching the fishing sprite fields here makes their
+                // walking frames use the two-row fishing source rectangle when the route resumes.
+                // Route NPCs therefore use only the gentle movementPause hold and never the
+                // fishing-pose override below.
+                string endOfRouteBehaviorName = TryGetNetStringField(npc, "endOfRouteBehaviorName");
+                bool isFishingBehavior = false;
+
+                if (isFishingBehavior)
+                {
+                    if (!snapshot.HasSavedSpriteDimensions)
+                    {
+                        snapshot.SavedIgnoreSourceRectUpdates = TryGetPrivateField(npc.Sprite, "ignoreSourceRectUpdates") as bool? ?? false;
+                        snapshot.SavedSpriteWidth = TryGetPrivateField(npc.Sprite, "spriteWidth") as int? ?? npc.Sprite.SpriteWidth;
+                        snapshot.SavedTempSpriteHeight = TryGetPrivateField(npc.Sprite, "tempSpriteHeight") as int? ?? -1;
+                        snapshot.HasSavedSpriteDimensions = true;
+                    }
+                    TrySetPrivateField(npc.Sprite, "ignoreSourceRectUpdates", false);
+                    TrySetPrivateField(npc.Sprite, "spriteWidth", 16);
+                    TrySetPrivateField(npc.Sprite, "tempSpriteHeight", -1);
+
+                    // "doingEndOfRouteAnimation" is a NetBool, not a plain bool — setting it via
+                    // the plain-field helper silently fails, so vanilla keeps re-triggering the
+                    // route-end intro animation on top of our own forced idle frame every tick,
+                    // which is what corrupted the pose into showing the wrong tilesheet row.
+                    // Suppress it properly here, and save the behavior name so we can manually
+                    // resume the real fishing animation once we let go (see RestoreAllBystanders).
+                    if (snapshot.SavedDoingEndOfRouteAnimation == null)
+                    {
+                        snapshot.SavedDoingEndOfRouteAnimation = TryGetNetBoolField(npc, "doingEndOfRouteAnimation");
+                        snapshot.SavedCurrentlyDoingEndOfRouteAnimation = TryGetPrivateField(npc, "currentlyDoingEndOfRouteAnimation") as bool?;
+                        snapshot.SavedStartedEndOfRouteBehavior = endOfRouteBehaviorName;
+                    }
+                    TrySetNetBoolField(npc, "doingEndOfRouteAnimation", false);
+                    TrySetPrivateField(npc, "currentlyDoingEndOfRouteAnimation", false);
+
+                    // The fishing rod is drawn as a separate layer independent of the main sprite
+                    // frame — clearing it here is what actually stops the mismatched second-row
+                    // "ghost" during the hold, on top of the sourceRect fix above.
+                    if (!snapshot.HasSavedRodLayerFields)
+                    {
+                        snapshot.SavedYOffset = TryGetPrivateField(npc, "yOffset") as float? ?? 0f;
+                        snapshot.SavedLoadedEndOfRouteBehavior = TryGetPrivateField(npc, "loadedEndOfRouteBehavior") as string;
+                        snapshot.SavedDrawOffset = TryGetPrivateField(npc, "drawOffset") as Microsoft.Xna.Framework.Vector2? ?? Microsoft.Xna.Framework.Vector2.Zero;
+                        snapshot.HasSavedRodLayerFields = true;
+                    }
+                    TrySetPrivateField(npc, "yOffset", 0f);
+                    TrySetPrivateField(npc, "loadedEndOfRouteBehavior", null);
+                    TrySetPrivateField(npc, "drawOffset", Microsoft.Xna.Framework.Vector2.Zero);
+                }
+
+                // Snap the sprite to the idle frame for whichever direction the NPC ended up
+                // facing, so they don't freeze mid-stride with a leg in the air.
+                npc.Sprite.StopAnimation();
+                npc.Sprite.CurrentFrame = GetNpcIdleFrameForDirection(npc.FacingDirection);
+                npc.Sprite.UpdateSourceRect();
+            }
+            else
+            {
+                // Static/special-action NPCs, like someone sitting in the Saloon, don't have a
+                // route controller to protect. Temporarily clear the animation so they actually
+                // stop what they're doing and look at the farmer, then RestoreAllBystanders puts
+                // the original animation/frame back two seconds later.
+
+                // FISHING FIX, SCOPED: same reasoning as the wasRouteNpc branch above — only
+                // touch sprite dimensions / NetBool / behavior name when this NPC's end-of-route
+                // behavior is genuinely "fish", so every other special-pose NPC (sitting, reading,
+                // etc.) keeps using exactly the plain restore path this mod already used
+                // successfully before.
+                bool isFishingBehavior = TryGetActiveFishingBehaviorName(npc, out string endOfRouteBehaviorName);
+
+                if (isFishingBehavior)
+                {
+                    if (!snapshot.HasSavedSpriteDimensions)
+                    {
+                        snapshot.SavedIgnoreSourceRectUpdates = TryGetPrivateField(npc.Sprite, "ignoreSourceRectUpdates") as bool? ?? false;
+                        snapshot.SavedSpriteWidth = TryGetPrivateField(npc.Sprite, "spriteWidth") as int? ?? npc.Sprite.SpriteWidth;
+                        snapshot.SavedTempSpriteHeight = TryGetPrivateField(npc.Sprite, "tempSpriteHeight") as int? ?? -1;
+                        snapshot.HasSavedSpriteDimensions = true;
+                    }
+                    TrySetPrivateField(npc.Sprite, "ignoreSourceRectUpdates", false);
+                    TrySetPrivateField(npc.Sprite, "spriteWidth", 16);
+                    TrySetPrivateField(npc.Sprite, "tempSpriteHeight", -1); // vanilla's own sentinel for "use normal spriteHeight"
+
+                    if (snapshot.SavedDoingEndOfRouteAnimation == null)
+                    {
+                        snapshot.SavedDoingEndOfRouteAnimation = TryGetNetBoolField(npc, "doingEndOfRouteAnimation");
+                        snapshot.SavedCurrentlyDoingEndOfRouteAnimation = TryGetPrivateField(npc, "currentlyDoingEndOfRouteAnimation") as bool?;
+                        snapshot.SavedStartedEndOfRouteBehavior = endOfRouteBehaviorName;
+                    }
+                    TrySetNetBoolField(npc, "doingEndOfRouteAnimation", false);
+                    TrySetPrivateField(npc, "currentlyDoingEndOfRouteAnimation", false);
+
+                    // The fishing rod is drawn as a separate layer independent of the main sprite
+                    // frame — clearing it here is what actually stops the mismatched second-row
+                    // "ghost" during the hold, on top of the sourceRect fix above.
+                    if (!snapshot.HasSavedRodLayerFields)
+                    {
+                        snapshot.SavedYOffset = TryGetPrivateField(npc, "yOffset") as float? ?? 0f;
+                        snapshot.SavedLoadedEndOfRouteBehavior = TryGetPrivateField(npc, "loadedEndOfRouteBehavior") as string;
+                        snapshot.SavedDrawOffset = TryGetPrivateField(npc, "drawOffset") as Microsoft.Xna.Framework.Vector2? ?? Microsoft.Xna.Framework.Vector2.Zero;
+                        snapshot.HasSavedRodLayerFields = true;
+                    }
+                    TrySetPrivateField(npc, "yOffset", 0f);
+                    TrySetPrivateField(npc, "loadedEndOfRouteBehavior", null);
+                    TrySetPrivateField(npc, "drawOffset", Microsoft.Xna.Framework.Vector2.Zero);
+                }
+
+                int lookDirection = GetDirectionTowardPlayer(npc);
+
+                npc.Sprite.StopAnimation();
+                npc.Sprite.ClearAnimation();
+                npc.Sprite.CurrentAnimation = null;
+                npc.flip = false;
+                npc.FacingDirection = lookDirection;
+                npc.faceDirection(lookDirection);
+                npc.Sprite.CurrentFrame = GetNpcIdleFrameForDirection(lookDirection);
+                npc.Sprite.UpdateSourceRect();
+            }
+
+            if (npc.movementPause < BystanderHoldPauseTicks)
+                npc.movementPause = BystanderHoldPauseTicks;
+        }
+
+        private void RestoreAllBystanders()
+        {
+            DebugLog("BYSTANDER", $"Restoring {activeBystanderSnapshots.Count} bystander snapshot(s).");
+            var routeSnapshots = new List<BystanderSnapshot>();
+            int delayedActionToken = delayedActionContextToken;
+
+            foreach (var snapshot in activeBystanderSnapshots)
+            {
+                NPC npc = snapshot.Npc;
+
+                // Cancel any emote that hadn't fired yet — the NPC is going back to normal now,
+                // so it shouldn't pop later, disconnected from the reaction it belonged to.
+                snapshot.PendingEmote = null;
+
+                if (npc == null || npc.currentLocation == null)
+                {
+                    DebugLog("BYSTANDER", $"Snapshot #{snapshot.DebugId} skipped during restore because its NPC or location is unavailable.");
+                    continue;
+                }
+
+                // Release the cross-mod watching flag now that this bystander is going back to normal.
+                npc.modData.Remove(BystanderWatchingModDataKey);
+
+                // NOTE: only actual movement counts as "route NPC" here too — see the matching
+                // fix in HoldBystanderWatching / TriggerBystanderReactions for the full reasoning.
+                bool wasRouteNpc = snapshot.WasPausedByMod || snapshot.WasMoving || snapshot.WasWalkingTowardPlayer;
+
+                if (wasRouteNpc)
+                {
+                    DebugLog("BYSTANDER", () => $"Restoring route snapshot #{snapshot.DebugId} with pause-only release: {DescribeNpcDebugState(npc)}.");
+                    ReleaseRouteBystanderPauseOnly(snapshot);
+                    routeSnapshots.Add(snapshot);
+                    continue;
+                }
+
+                npc.movementPause = snapshot.MovementPause;
+                npc.FacingDirection = snapshot.FacingDirection;
+                npc.flip = snapshot.Flip;
+
+                // Fishing needs an atomic restore. Its saved sprite dimensions cover two
+                // tilesheet rows, so restoring those dimensions and CurrentFrame now, then
+                // waiting 150 ms to restart doMiddleAnimation, exposes one visibly corrupted
+                // frame. Keep the clean watching pose during the delay and restore every fishing
+                // field inside the same callback that restarts vanilla's animation instead.
+                if (!string.IsNullOrEmpty(snapshot.SavedStartedEndOfRouteBehavior))
+                {
+                    string behaviorName = snapshot.SavedStartedEndOfRouteBehavior;
+                    snapshot.SavedStartedEndOfRouteBehavior = null;
+                    NPC npcForDelay = npc;
+                    DebugLog("FISHING", $"Scheduled atomic middle-animation restore for snapshot #{snapshot.DebugId}, NPC={npc.Name}, behavior={behaviorName}, delay=150 ms, token={delayedActionToken}.");
+
+                    DelayedAction.functionAfterDelay(() =>
+                    {
+                        if (!IsCurrentDelayedAction(delayedActionToken)
+                            || npcForDelay?.currentLocation == null
+                            || npcForDelay.currentLocation != snapshot.Location
+                            || npcForDelay.Sprite == null)
+                        {
+                            DebugLog("DELAYED", $"Skipped stale/unavailable atomic fishing restore for snapshot #{snapshot.DebugId}, token={delayedActionToken}.");
+                            return;
+                        }
+
+                        PrepareFishingBystanderVanillaRestart(snapshot, npcForDelay);
+                        TryRestartNpcMiddleAnimation(npcForDelay, behaviorName);
+                        // doMiddleAnimation changes CurrentFrame before startRouteBehavior expands
+                        // the fishing sprite, but AddFrame itself doesn't refresh SourceRect. Finish
+                        // the transition now so no draw can see the old coordinates with the newly
+                        // expanded fishing dimensions.
+                        npcForDelay.Sprite.UpdateSourceRect();
+                        DebugLog("FISHING", () => $"Atomic fishing restore completed for snapshot #{snapshot.DebugId}: {DescribeNpcDebugState(npcForDelay)}.");
+                    }, 150);
+
+                    continue;
+                }
+
+                // FISHING FIX: restore the sprite dimensions BEFORE touching CurrentAnimation/
+                // CurrentFrame/UpdateSourceRect below — see the matching comment in
+                // HoldBystanderWatching. Restoring dimensions first means the CurrentFrame set
+                // below either computes correctly (normal NPCs) or safely no-ops (fishing-style
+                // NPCs, exactly like vanilla itself does — their sourceRect gets properly
+                // re-driven the next time vanilla's own fishing loop logic touches it).
+                if (snapshot.HasSavedSpriteDimensions)
+                {
+                    TrySetPrivateField(npc.Sprite, "spriteWidth", snapshot.SavedSpriteWidth);
+                    TrySetPrivateField(npc.Sprite, "tempSpriteHeight", snapshot.SavedTempSpriteHeight);
+                    TrySetPrivateField(npc.Sprite, "ignoreSourceRectUpdates", snapshot.SavedIgnoreSourceRectUpdates);
+                    snapshot.HasSavedSpriteDimensions = false;
+                }
+
+                // FISHING FIX: hand back vanilla's own end-of-route animation flags — see
+                // HoldBystanderWatching / ReleaseRouteBystanderPauseOnly for the full explanation.
+                if (snapshot.SavedDoingEndOfRouteAnimation.HasValue)
+                {
+                    TrySetNetBoolField(npc, "doingEndOfRouteAnimation", snapshot.SavedDoingEndOfRouteAnimation.Value);
+                    TrySetPrivateField(npc, "currentlyDoingEndOfRouteAnimation", snapshot.SavedCurrentlyDoingEndOfRouteAnimation ?? false);
+                    snapshot.SavedDoingEndOfRouteAnimation = null;
+                    snapshot.SavedCurrentlyDoingEndOfRouteAnimation = null;
+                }
+
+                // FISHING FIX: hand back the rod-layer fields too — see the matching comment in
+                // HoldBystanderWatching. doMiddleAnimation (re-invoked below, if applicable) will
+                // set these up fresh on its own once it runs, but restoring them here avoids a
+                // brief stray frame in between with the rod layer still suppressed.
+                if (snapshot.HasSavedRodLayerFields)
+                {
+                    TrySetPrivateField(npc, "yOffset", snapshot.SavedYOffset);
+                    TrySetPrivateField(npc, "loadedEndOfRouteBehavior", snapshot.SavedLoadedEndOfRouteBehavior);
+                    TrySetPrivateField(npc, "drawOffset", snapshot.SavedDrawOffset);
+                    snapshot.HasSavedRodLayerFields = false;
+                }
+
+                if (snapshot.CurrentAnimation != null && snapshot.CurrentAnimation.Count > 0)
+                {
+                    npc.Sprite.CurrentAnimation =
+                        new List<FarmerSprite.AnimationFrame>(snapshot.CurrentAnimation);
+                    TrySetPrivateField(npc.Sprite, "currentAnimationIndex", 0);
+                    TrySetPrivateField(npc.Sprite, "timer", 0);
+                }
+                else
+                {
+                    npc.Sprite.StopAnimation();
+                    npc.Sprite.ClearAnimation();
+                    npc.Sprite.CurrentAnimation = null;
+                }
+
+                npc.Sprite.CurrentFrame = snapshot.CurrentFrame;
+                npc.Sprite.UpdateSourceRect();
+                DebugLog("BYSTANDER", () => $"Restored static/special snapshot #{snapshot.DebugId}: {DescribeNpcDebugState(npc)}.");
+            }
+
+            // Tiny safety pass: only removes any refreshed pause that might remain from an emote/animation tick.
+            // It still doesn't touch controller, Halt, or schedule.
+            if (routeSnapshots.Count > 0)
+            {
+                DelayedAction.functionAfterDelay(() =>
+                {
+                    if (!IsCurrentDelayedAction(delayedActionToken))
+                    {
+                        DebugLog("DELAYED", $"Skipped stale bystander route safety release for token {delayedActionToken}.");
+                        return;
+                    }
+
+                    foreach (var snapshot in routeSnapshots)
+                        ReleaseRouteBystanderPauseOnly(snapshot);
+                    DebugLog("BYSTANDER", $"Completed delayed safety release for {routeSnapshots.Count} route snapshot(s).");
+                }, 250);
+            }
+
+            ClearActiveBystanderSnapshots();
+            bystanderRestore.IsPending = false;
+            bystanderRestore.CountdownStarted = false;
+            bystanderRestore.Timer = 0;
+            bystanderRestore.SafetyTimer = 0;
+            bystanderRestore.Partner = null;
+            bystanderRestore.ForceStart = false;
+        }
+
+        /// <summary>
+        /// Prepares a stationary fishing spectator for vanilla to rebuild its middle animation.
+        /// The saved fishing rectangle must not be restored here: startRouteBehavior expands the
+        /// current rectangle again, which briefly produces an oversized multi-row source rectangle.
+        /// </summary>
+        private void PrepareFishingBystanderVanillaRestart(BystanderSnapshot snapshot, NPC npc)
+        {
+            if (snapshot == null || npc?.Sprite == null)
+                return;
+
+            if (snapshot.HasSavedSpriteDimensions)
+            {
+                // Start from the regular one-row NPC rectangle. Vanilla's fishing behavior will
+                // apply its own horizontal/vertical extension exactly once in doMiddleAnimation.
+                TrySetPrivateField(npc.Sprite, "spriteWidth", 16);
+                TrySetPrivateField(npc.Sprite, "tempSpriteHeight", -1);
+                TrySetPrivateField(npc.Sprite, "ignoreSourceRectUpdates", false);
+                npc.Sprite.UpdateSourceRect();
+                snapshot.HasSavedSpriteDimensions = false;
+            }
+
+            if (snapshot.SavedDoingEndOfRouteAnimation.HasValue)
+            {
+                TrySetNetBoolField(npc, "doingEndOfRouteAnimation", snapshot.SavedDoingEndOfRouteAnimation.Value);
+                TrySetPrivateField(npc, "currentlyDoingEndOfRouteAnimation", snapshot.SavedCurrentlyDoingEndOfRouteAnimation ?? false);
+                snapshot.SavedDoingEndOfRouteAnimation = null;
+                snapshot.SavedCurrentlyDoingEndOfRouteAnimation = null;
+            }
+
+            if (snapshot.HasSavedRodLayerFields)
+            {
+                TrySetPrivateField(npc, "yOffset", snapshot.SavedYOffset);
+                TrySetPrivateField(npc, "loadedEndOfRouteBehavior", snapshot.SavedLoadedEndOfRouteBehavior);
+                TrySetPrivateField(npc, "drawOffset", snapshot.SavedDrawOffset);
+                snapshot.HasSavedRodLayerFields = false;
+            }
+
+            // Don't restore the saved animation or frame. doMiddleAnimation rebuilds both from
+            // routeEndAnimation; restoring them first would combine a fishing frame with the
+            // rectangle that startRouteBehavior is about to expand again.
+        }
+
+        private void ReleaseRouteBystanderPauseOnly(BystanderSnapshot snapshot)
+        {
+            if (snapshot == null)
+                return;
+
+            NPC npc = snapshot.Npc;
+            if (npc == null || npc.currentLocation == null)
+                return;
+
+            if (snapshot.Location != null && npc.currentLocation != snapshot.Location)
+                return;
+
+            // Route NPCs work like the partner outside bump-kiss pause: stop refreshing movementPause
+            // and let vanilla continue the route by itself.
+            npc.movementPause = 0;
+
+            // FISHING FIX: hand the sprite dimensions back too, as a safety net — vanilla's own
+            // fishing loop will normally re-drive these itself once movementPause releases and the
+            // NPC resumes their pose, but restoring them here avoids a few stray ticks of the idle
+            // frame showing through before that happens.
+            if (snapshot.HasSavedSpriteDimensions && npc.Sprite != null)
+            {
+                TrySetPrivateField(npc.Sprite, "spriteWidth", snapshot.SavedSpriteWidth);
+                TrySetPrivateField(npc.Sprite, "tempSpriteHeight", snapshot.SavedTempSpriteHeight);
+                TrySetPrivateField(npc.Sprite, "ignoreSourceRectUpdates", snapshot.SavedIgnoreSourceRectUpdates);
+                snapshot.HasSavedSpriteDimensions = false;
+            }
+
+            // FISHING FIX: hand the doingEndOfRouteAnimation NetBool back too — see the matching
+            // comment in HoldBystanderWatching.
+            if (snapshot.SavedDoingEndOfRouteAnimation.HasValue)
+            {
+                TrySetNetBoolField(npc, "doingEndOfRouteAnimation", snapshot.SavedDoingEndOfRouteAnimation.Value);
+                TrySetPrivateField(npc, "currentlyDoingEndOfRouteAnimation", snapshot.SavedCurrentlyDoingEndOfRouteAnimation ?? false);
+                snapshot.SavedDoingEndOfRouteAnimation = null;
+                snapshot.SavedCurrentlyDoingEndOfRouteAnimation = null;
+            }
+
+            // FISHING FIX: hand back the rod-layer fields too — see the matching comment in
+            // HoldBystanderWatching.
+            if (snapshot.HasSavedRodLayerFields)
+            {
+                TrySetPrivateField(npc, "yOffset", snapshot.SavedYOffset);
+                TrySetPrivateField(npc, "loadedEndOfRouteBehavior", snapshot.SavedLoadedEndOfRouteBehavior);
+                TrySetPrivateField(npc, "drawOffset", snapshot.SavedDrawOffset);
+                snapshot.HasSavedRodLayerFields = false;
+            }
+
+            // FISHING FIX: resetting the sprite dimensions and the NetBool above stops the
+            // mismatched-frame glitch, but doesn't make vanilla resume the actual fishing
+            // animation loop by itself — that's driven by NPC.doMiddleAnimation, a private method
+            // scheduled via a self-rescheduling Game1 DelayedAction chain that doesn't restart on
+            // its own once interrupted. Without this, the NPC is left standing in the idle
+            // "looking at player" pose forever instead of going back to actually fishing.
+            // Re-invoke it manually, a short delay after releasing the pause above so vanilla's
+            // own movement/behavior systems have a moment to settle first.
+            if (!string.IsNullOrEmpty(snapshot.SavedStartedEndOfRouteBehavior))
+            {
+                string behaviorName = snapshot.SavedStartedEndOfRouteBehavior;
+                snapshot.SavedStartedEndOfRouteBehavior = null;
+                int delayedActionToken = delayedActionContextToken;
+                DebugLog("FISHING", $"Scheduled route middle-animation restart for snapshot #{snapshot.DebugId}, NPC={npc.Name}, behavior={behaviorName}, delay=150 ms, token={delayedActionToken}.");
+
+                DelayedAction.functionAfterDelay(() =>
+                {
+                    if (!IsCurrentDelayedAction(delayedActionToken) || npc?.currentLocation == null || npc.Sprite == null)
+                    {
+                        DebugLog("DELAYED", $"Skipped stale/unavailable route fishing restart for snapshot #{snapshot.DebugId}, token={delayedActionToken}.");
+                        return;
+                    }
+
+                    TryRestartNpcMiddleAnimation(npc, behaviorName);
+                }, 150);
+            }
+        }
+
+        /// <summary>
+        /// Force-closes an NPC's speech bubble immediately, instead of leaving an empty bubble
+        /// shell on screen (which is what passing an empty string to showTextAboveHead did — the
+        /// bubble shape stayed visible with no text inside, and skipped the game's normal
+        /// fade-out). Field names and types confirmed directly from the game's compiled
+        /// Stardew Valley.dll metadata: textAboveHeadTimer (int), textAboveHeadPreTimer (int),
+        /// textAboveHead (string), textAboveHeadAlpha (float, controls the bubble's fade opacity).
+        /// Zeroing the timer and alpha together closes the bubble on the very next draw call,
+        /// the same as when its timer naturally reaches zero.
+        /// </summary>
+        private void ForceCloseSpeechBubble(NPC npc)
+        {
+            if (npc == null)
+                return;
+
+            // Fallback: if none of the confirmed internal field names exist in this game version
+            // (e.g. a future update renames them), at least clear the visible text so it's not
+            // stuck showing the same line forever — strictly better than a permanently stuck line.
+            if (!TryClearNpcSpeechBubble(npc))
+                ShowTextAboveHeadWithPipeSupport(npc, "");
+        }
+
+        /// <summary>
+        /// Returns true if any NPC other than the romantic partner is currently visible on screen.
+        /// Used to suppress the post-kiss dialogue balloon when there are bystanders watching.
+        /// </summary>
+        /// <summary>
+        /// 10% independent chance for a noticing bystander to say a short reaction line above
+        /// their head. Uses the NPC's own "Reaction&lt;Name&gt;" lines when available (e.g. ReactionAbigail),
+        /// falls back to the generic "CrowdReaction" pool for NPCs without personalized lines
+        /// (custom/SVE NPCs), and uses "CrowdReaction.Child" for children instead.
+        /// </summary>
+        private void TryShowCrowdReactionLine(BystanderSnapshot snapshot)
+        {
+            NPC npc = snapshot?.Npc;
+
+            if (npc == null || random.NextDouble() >= CrowdReactionLineChance)
+                return;
+
+            // Cap how many bystanders can have a bubble open at once. No explicit queue — a
+            // bystander who loses this roll just keeps re-rolling their own independent chance
+            // next cycle (see the cooldown-gated loop in TriggerBystanderReactions) until a slot
+            // opens up, which happens naturally once someone else's bubble closes (see
+            // TickCrowdReactionCooldowns decrementing activeCrowdReactionSpeakerCount below).
+            if (activeCrowdReactionSpeakerCount >= MaxConcurrentCrowdReactionSpeakers)
+                return;
+
+            string line;
+
+            if (IsChildNpc(npc))
+            {
+                line = GetSimpleDialogueLineNoRepeat(npc, "CrowdReaction.Child");
+            }
+            else
+            {
+                // "Reaction<Name>" has no separator between the prefix and the NPC name
+                // (e.g. "ReactionAbigail.1"), unlike the mod's usual "{prefix}.{name}.{n}" pattern.
+                line = GetSimpleDialogueLineNoRepeat(npc, $"Reaction{npc.Name}");
+
+                if (string.IsNullOrEmpty(line))
+                    line = GetSimpleDialogueLineNoRepeat(npc, "CrowdReaction");
+            }
+
+            if (!string.IsNullOrEmpty(line))
+            {
+                // Crowd lines always have a fixed three-second lifetime. When a line is split
+                // with '|', show the first bubble for one second; the queued second bubble then
+                // remains for the final two seconds before the shared close timer expires.
+                ShowTextAboveHeadWithPipeSupport(npc, line, firstPartDurationTicks: 60);
+
+                // Keep this bystander quiet for a few cycles after speaking, giving the bubble
+                // time to fully close before they're eligible to speak again.
+                snapshot.CrowdReactionCooldownTicks = 150; // ~2.5s at 60 ticks/sec
+
+                // The valley pauses during each vanilla kiss cycle, which stalls the game's own
+                // bubble timer — force-close it after a fixed 3 real seconds instead of relying
+                // on that timer to count down on its own.
+                snapshot.CrowdReactionBubbleCloseTicks = 180; // 3s at 60 ticks/sec
+
+                // Reserve a speaking slot until this bubble actually closes (see
+                // TickCrowdReactionCooldowns, which decrements this the moment
+                // CrowdReactionBubbleCloseTicks reaches 0 and the bubble is force-closed).
+                activeCrowdReactionSpeakerCount++;
+            }
+        }
+
+        /// <summary>
+        /// Looks up every available "{prefix}.{n}" key directly (content pack first, then i18n),
+        /// with no fixed numeric limit, but never repeats a specific key already shown for this
+        /// NPC this session. Once every key in this prefix's pool has been used for this NPC, the
+        /// pool cycles back around instead of going silent forever.
+        /// </summary>
+        private string GetSimpleDialogueLineNoRepeat(NPC npc, string prefix)
+        {
+            if (npc == null || string.IsNullOrEmpty(prefix))
+                return null;
+
+            if (!usedCrowdReactionKeysByNpc.TryGetValue(npc.Name, out HashSet<string> usedKeys))
+            {
+                usedKeys = new HashSet<string>();
+                usedCrowdReactionKeysByNpc[npc.Name] = usedKeys;
+            }
+
+            List<int> availableNumbers = GetAvailableDialogueNumbers(prefix);
+            if (availableNumbers.Count == 0)
+                return null;
+
+            List<int> unusedNumbers = availableNumbers
+                .Where(number => !usedKeys.Contains($"{prefix}.{number}"))
+                .ToList();
+
+            if (unusedNumbers.Count == 0)
+            {
+                // Reset only this prefix, preserving progress in the NPC's other dialogue pools.
+                usedKeys.RemoveWhere(key => key.StartsWith(prefix + ".", StringComparison.Ordinal));
+                unusedNumbers = availableNumbers;
+            }
+
+            while (unusedNumbers.Count > 0)
+            {
+                int index = random.Next(unusedNumbers.Count);
+                int number = unusedNumbers[index];
+                unusedNumbers.RemoveAt(index);
+                string key = $"{prefix}.{number}";
+                string value = GetSimpleDialogueKey(prefix, number);
+                if (!string.IsNullOrEmpty(value))
+                {
+                    usedKeys.Add(key);
+                    return value;
+                }
+            }
+
+            return null;
+        }
+
+        private string GetSimpleDialogueKey(string prefix, int number)
+        {
+            string key = $"{prefix}.{number}";
+
+            if (contentPackLoader.TryGetEntry(key, out string packValue) && !string.IsNullOrEmpty(packValue))
+                return packValue.Replace("@", Game1.player.Name);
+
+            var translation = this.Helper.Translation.Get(key);
+            if (translation.HasValue())
+                return translation.ToString().Replace("@", Game1.player.Name);
+
+            return null;
+        }
+
+        internal bool HasBystandersOnScreen()
+        {
+            if (Game1.currentLocation == null)
+                return false;
+
+            foreach (NPC npc in Game1.currentLocation.characters)
+            {
+                if (npc == null)
+                    continue;
+
+                if (IsCurrentSpouse(npc.Name) || IsDatingPartner(npc.Name))
+                    continue;
+
+                if (IsNpcOnScreen(npc))
+                    return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// True if any non-partner NPC is on screen AND has an unobstructed line of sight
+        /// to the player. Used to decide between kissReaction (private) and PublicKissReaction.
+        /// </summary>
+        internal bool HasBystandersWithLineOfSight()
+        {
+            if (Game1.currentLocation == null)
+                return false;
+
+            foreach (NPC npc in Game1.currentLocation.characters)
+            {
+                if (npc == null)
+                    continue;
+
+                if (IsCurrentSpouse(npc.Name) || IsDatingPartner(npc.Name))
+                    continue;
+
+                if (IsNpcOnScreen(npc) && HasLineOfSightToPlayer(npc))
+                    return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// True when at least one NPC who actually noticed the current multi-kiss is still
+        /// watching from inside the player's viewport with an unobstructed line of sight.
+        /// </summary>
+        internal bool HasActiveBystanderWatchingOnScreen()
+        {
+            foreach (BystanderSnapshot snapshot in activeBystanderSnapshots)
+            {
+                NPC npc = snapshot?.Npc;
+                if (npc == null || npc.currentLocation != Game1.currentLocation)
+                    continue;
+
+                if (IsNpcOnScreen(npc) && HasLineOfSightToPlayer(npc))
+                    return true;
+            }
+
+            return false;
+        }
+
+        private bool IsNpcWalkingTowardPlayer(NPC npc)
+        {
+            if (npc == null || !npc.isMoving())
+                return false;
+
+            Vector2 diff = Game1.player.Position - npc.Position;
+            int expectedDir;
+            if (Math.Abs(diff.X) > Math.Abs(diff.Y))
+                expectedDir = diff.X > 0 ? 1 : 3;
+            else
+                expectedDir = diff.Y > 0 ? 2 : 0;
+
+            return npc.FacingDirection == expectedDir;
+        }
+
+        private bool IsNpcOnScreen(NPC npc)
+        {
+            if (npc?.currentLocation == null || npc.currentLocation != Game1.currentLocation)
+                return false;
+
+            Vector2 worldPos  = npc.Position;
+            Vector2 screenPos = Game1.GlobalToLocal(Game1.viewport, worldPos);
+
+            return screenPos.X >= -64 && screenPos.X <= Game1.viewport.Width  + 64
+                && screenPos.Y >= -64 && screenPos.Y <= Game1.viewport.Height + 64;
+        }
+
+        private int GetDirectionTowardPlayer(NPC npc)
+        {
+            Vector2 diff = Game1.player.Position - npc.Position;
+
+            if (Math.Abs(diff.X) > Math.Abs(diff.Y))
+                return diff.X > 0 ? 1 : 3; // right : left
+            else
+                return diff.Y > 0 ? 2 : 0; // down : up
+        }
+    }
+}

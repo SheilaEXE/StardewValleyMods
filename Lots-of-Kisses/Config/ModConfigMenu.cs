@@ -1,0 +1,184 @@
+using StardewModdingAPI;
+
+namespace LotsOfKisses
+{
+    internal static class ModConfigMenu
+    {
+        private static string T(ModEntry mod, string key, string fallback)
+        {
+            var translation = mod.Helper.Translation.Get(key);
+            return translation.HasValue() ? translation.ToString() : fallback;
+        }
+
+        public static void Register(ModEntry mod, IGenericModConfigMenuApi configMenu)
+        {
+            if (configMenu == null)
+                return;
+
+            configMenu.Register(
+                mod: mod.ModManifest,
+                reset: () => mod.Config = new ModConfig(),
+                save: mod.TryWriteConfig
+            );
+
+            configMenu.AddSectionTitle(
+                mod.ModManifest,
+                () => mod.Helper.Translation.Get("gmcm.section.features")
+            );
+
+            configMenu.AddBoolOption(
+                mod: mod.ModManifest,
+                name: () => mod.Helper.Translation.Get("gmcm.option.enable-mod.name"),
+                tooltip: () => mod.Helper.Translation.Get("gmcm.option.enable-mod.tooltip"),
+                getValue: () => mod.Config.ModEnabled,
+                setValue: value => mod.Config.ModEnabled = value
+            );
+
+            configMenu.AddBoolOption(
+                mod: mod.ModManifest,
+                name: () => T(mod, "gmcm.option.enable-polyamory-support.name", "Enable polyamory support"),
+                tooltip: () => T(mod, "gmcm.option.enable-polyamory-support.tooltip", "Allow kisses when the player has more than one romantic partner. When disabled, kisses work only if the player has exactly one boyfriend/girlfriend, fiance(e), or spouse."),
+                getValue: () => mod.Config.PolyamorySupport,
+                setValue: value => mod.Config.PolyamorySupport = value
+            );
+
+            configMenu.AddBoolOption(
+                mod: mod.ModManifest,
+                name: () => mod.Helper.Translation.Get("gmcm.option.multi-kisses.name"),
+                tooltip: () => mod.Helper.Translation.Get("gmcm.option.multi-kisses.tooltip"),
+                getValue: () => mod.Config.MultiKissEnabled,
+                setValue: value => mod.Config.MultiKissEnabled = value
+            );
+
+            configMenu.AddKeybindList(
+                mod: mod.ModManifest,
+                name: () => T(mod, "gmcm.option.multi-kiss-toggle-key.name", "Multi-Kiss start/stop key"),
+                tooltip: () => T(mod, "gmcm.option.multi-kiss-toggle-key.tooltip", "Optional: choose a key to start Multi-Kisses near a romantic partner and press it again to stop. When a key is assigned, automatic proximity and click starts are disabled. Set it to None to keep the normal behavior."),
+                getValue: () => mod.Config.MultiKissToggleKey,
+                setValue: value => mod.Config.MultiKissToggleKey = value
+            );
+
+            configMenu.AddBoolOption(
+                mod: mod.ModManifest,
+                name: () => T(mod, "gmcm.option.manual-kiss-starts-multi-kiss.name", "Manual kiss starts Multi-Kisses"),
+                tooltip: () => T(mod, "gmcm.option.manual-kiss-starts-multi-kiss.tooltip", "When Multi-Kisses is enabled, clicking your partner with the preferred kiss button immediately starts the full sequence and replaces the usual proximity start."),
+                getValue: () => mod.Config.ManualKissStartsMultiKiss,
+                setValue: value =>
+                {
+                    mod.Config.ManualKissStartsMultiKiss = value;
+                    if (value)
+                        mod.Config.RandomManualKissTier = false;
+                }
+            );
+
+            configMenu.AddBoolOption(
+                mod: mod.ModManifest,
+                name: () => T(mod, "gmcm.option.random-manual-kiss-tier.name", "Random tier for manual kisses"),
+                tooltip: () => T(mod, "gmcm.option.random-manual-kiss-tier.tooltip", "Clicking your partner with the preferred kiss button starts one random tier without continuing into a chain. Use it with Multi-Kisses disabled, or keep Multi-Kisses enabled and assign a start/stop key to control the full sequence separately."),
+                getValue: () => mod.Config.RandomManualKissTier,
+                setValue: value =>
+                {
+                    mod.Config.RandomManualKissTier = value;
+                    if (value)
+                        mod.Config.ManualKissStartsMultiKiss = false;
+                }
+            );
+
+            configMenu.AddKeybindList(
+                mod: mod.ModManifest,
+                name: () => T(mod, "gmcm.option.manual-kiss-button.name", "Manual kiss button"),
+                tooltip: () => T(mod, "gmcm.option.manual-kiss-button.tooltip", "Choose one keyboard, controller, or mouse button for the optional manual kiss features. The button is only consumed when a romantic partner can actually be kissed."),
+                getValue: () => mod.Config.ManualKissButton,
+                setValue: value => mod.Config.ManualKissButton = KeepSingleBinding(value)
+            );
+
+            configMenu.AddBoolOption(
+                mod: mod.ModManifest,
+                name: () => mod.Helper.Translation.Get("gmcm.option.bump-kiss.name"),
+                tooltip: () => mod.Helper.Translation.Get("gmcm.option.bump-kiss.tooltip"),
+                getValue: () => mod.Config.BumpKissEnabled,
+                setValue: value => mod.Config.BumpKissEnabled = value
+            );
+
+            configMenu.AddBoolOption(
+                mod: mod.ModManifest,
+                name: () => T(mod, "gmcm.option.special-animation-kisses.name", "Allow Kisses During Special Animations"),
+                tooltip: () => T(mod, "gmcm.option.special-animation-kisses.tooltip", "Allow kisses to temporarily interrupt an NPC's special animation. Disable this to wait until the animation ends. Incompatible custom fishing animations and animations protected by their author are always left uninterrupted."),
+                getValue: () => mod.Config.AllowKissesDuringSpecialAnimations,
+                setValue: value => mod.Config.AllowKissesDuringSpecialAnimations = value
+            );
+
+            configMenu.AddTextOption(
+                mod: mod.ModManifest,
+                name: () => T(mod, "gmcm.option.blush-smoke-style.name", "Blush smoke style"),
+                tooltip: () => T(mod, "gmcm.option.blush-smoke-style.tooltip", "Choose which blush smoke animation plays during kiss sequences."),
+                getValue: () => mod.Config.BlushSmokeStyle.ToString(),
+                setValue: value =>
+                {
+                    if (System.Enum.TryParse<BlushSmokeStyle>(value, out var parsed))
+                        mod.Config.BlushSmokeStyle = parsed;
+                },
+                allowedValues: new[] { "Style1", "Style2" },
+                formatAllowedValue: value => T(mod, $"gmcm.option.blush-smoke-style.{value.ToLower()}", value)
+            );
+
+            configMenu.AddSectionTitle(
+                mod.ModManifest,
+                () => T(mod, "gmcm.section.multiplayer", "Multiplayer")
+            );
+
+            configMenu.AddBoolOption(
+                mod: mod.ModManifest,
+                name: () => T(mod, "gmcm.option.accept-player-spouse-kisses.name", "Accept kisses from player spouse"),
+                tooltip: () => T(mod, "gmcm.option.accept-player-spouse-kisses.tooltip", "Allow the player you married in multiplayer to initiate a synchronized kiss with you. Both players need Lots of Kisses installed."),
+                getValue: () => mod.Config.AcceptPlayerSpouseKisses,
+                setValue: value => mod.Config.AcceptPlayerSpouseKisses = value
+            );
+
+            if (mod.Helper.ModRegistry.IsLoaded("ThaliaFawnheart.TheStardewSquad"))
+            {
+                configMenu.AddSectionTitle(
+                    mod.ModManifest,
+                    () => T(mod, "gmcm.section.mod-compatibility", "Compatibility with Other Mods")
+                );
+
+                configMenu.AddBoolOption(
+                    mod: mod.ModManifest,
+                    name: () => T(mod, "gmcm.option.stardew-squad-task-kisses.name", "Allow kisses during Stardew Squad tasks"),
+                    tooltip: () => T(mod, "gmcm.option.stardew-squad-task-kisses.tooltip", "Let a kiss temporarily pause a recruited romantic partner's current task. Disable this to prevent Bump Kisses and Multi-Kisses while the partner is working; following and idle partners can still be kissed."),
+                    getValue: () => mod.Config.AllowKissesDuringStardewSquadTasks,
+                    setValue: value => mod.Config.AllowKissesDuringStardewSquadTasks = value
+                );
+            }
+
+            configMenu.AddSectionTitle(
+                mod.ModManifest,
+                () => T(mod, "gmcm.section.diagnostics", "Diagnostics")
+            );
+
+            configMenu.AddBoolOption(
+                mod: mod.ModManifest,
+                name: () => T(mod, "gmcm.option.enable-debug-logging.name", "Enable debug logging"),
+                tooltip: () => T(mod, "gmcm.option.enable-debug-logging.tooltip", "Records detailed state transitions for troubleshooting. Leave disabled during normal play and enable it only while reproducing a problem."),
+                getValue: () => mod.Config.EnableDebugLogging,
+                setValue: value =>
+                {
+                    mod.Config.EnableDebugLogging = value;
+                    if (value)
+                    {
+                        mod.DebugLog("DIAGNOSTICS", "Debug logging enabled. Reproduce the problem, then share the SMAPI log.");
+                        mod.LogDebugSessionHeader("enabled in GMCM");
+                    }
+                }
+            );
+        }
+
+        private static StardewModdingAPI.Utilities.KeybindList KeepSingleBinding(StardewModdingAPI.Utilities.KeybindList value)
+        {
+            if (value?.Keybinds == null || value.Keybinds.Length == 0)
+                return StardewModdingAPI.Utilities.KeybindList.Parse("None");
+
+            return new StardewModdingAPI.Utilities.KeybindList(value.Keybinds[0]);
+        }
+    }
+}

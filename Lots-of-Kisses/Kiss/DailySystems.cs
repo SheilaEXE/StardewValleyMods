@@ -1,0 +1,495 @@
+using Microsoft.Xna.Framework;
+using StardewModdingAPI;
+using StardewValley;
+using System;
+
+namespace LotsOfKisses
+{
+    public partial class ModEntry
+    {
+        // ======================================================================================================
+        // LOOK-AT-PLAYER / DISTANCE NOTICE SYSTEM
+        // ======================================================================================================
+        private void UpdateDailyPartnerSystems(NPC partner)
+        {
+            if (partner == null || !Context.IsWorldReady)
+                return;
+
+            float distance = DistanceToPlayer(partner);
+
+            // CONTINUOUS KISS SYSTEM
+            if (!continuousKissActive &&
+                !kissSequenceActive &&
+                !kissPostSequenceActive &&
+                !partner.isSleeping.Value &&
+                Game1.activeClickableMenu == null &&
+                Game1.player.canMove &&
+                !Game1.player.IsSitting() && // Don't let the player be pulled into a kiss chain while seated (e.g. chair/bench) — they can't act or move away normally while sitting.
+                this.Config.MultiKissEnabled &&
+                !this.Config.ManualKissStartsMultiKiss &&
+                !IsMultiKissHotkeyConfigured())
+            {
+                float touchDistance = DistanceToPlayer(partner);
+                bool touchingPartnerNow = touchDistance <= 64f;
+
+                // Key check: whether the player and NPC are aligned horizontally (side by side).
+                Vector2 diff = Game1.player.Position - partner.Position;
+                bool isHorizontal = Math.Abs(diff.X) > Math.Abs(diff.Y);
+
+                // Only allows the kiss if they are touching AND horizontally aligned.
+                if (!touchingPartnerNow || !isHorizontal)
+                {
+                    continuousKissTouchHoldTimer = 0;
+                    continuousKissWasTouchingPartner = false;
+                }
+                else if (!continuousKissWasTouchingPartner)
+                {
+                    continuousKissTouchHoldTimer = ContinuousKissHoldTicks;
+                    continuousKissWasTouchingPartner = true;
+                }
+                else if (continuousKissTouchHoldTimer <= 0)
+                {
+                    StartContinuousKiss(partner, RollContinuousKissTier(), true);
+                    didReactThisTick = true;
+                    return;
+                }
+            }
+            else
+            {
+                continuousKissTouchHoldTimer = 0;
+                continuousKissWasTouchingPartner = false;
+            }
+
+            UpdateBumpKissSystem(partner, distance);
+            UpdatePartnerLookAtPlayer(partner, distance);
+            UpdatePartnerNoticeFromDistance(partner, distance);
+        }
+        private bool IsNpcBusyForPassiveReaction(NPC npc)
+        {
+            if (npc == null)
+                return true;
+
+            // The pre-kiss snapshot already owns the NPC's original pose until the player moves
+            // away. Capturing a passive-look snapshot during that wait would save the temporary
+            // post-kiss facing and later overwrite the correct restoration.
+            if (HasNpcPreKissSpecialAction(npc))
+                return true;
+
+            // If any system or mod is moving the NPC, don't let Lots of Kisses
+            // flip the sprite on top of it.
+            if (npc.controller != null)
+                return true;
+
+            if (npc.isMoving())
+                return true;
+
+            if (npc.movementPause > 0)
+                return true;
+
+            if (npc.CurrentDialogue != null && npc.CurrentDialogue.Count > 0)
+                return true;
+
+            if (HasSpecialSpriteAnimation(npc))
+                return true;
+
+            return false;
+        }
+
+        private bool TryTransferPassiveLookOriginalPose(NPC npc, out int facing, out int frame)
+        {
+            facing = npc?.FacingDirection ?? -1;
+            frame = npc?.Sprite?.CurrentFrame ?? -1;
+
+            if (npc == null || npc.Sprite == null || npc.currentLocation == null ||
+                !passiveLookRestoreActive || passiveLookRestoreNpcName != npc.Name)
+            {
+                return false;
+            }
+
+            bool snapshotStillApplies =
+                npc.currentLocation.NameOrUniqueName == passiveLookRestoreLocationName &&
+                npc.TilePoint == passiveLookRestoreTile;
+
+            if (!snapshotStillApplies)
+            {
+                ClearPassiveLookOriginalPose("not transferable because NPC changed location or tile");
+                return false;
+            }
+
+            facing = passiveLookRestoreFacing;
+            frame = passiveLookRestoreFrame;
+            int transferredSnapshotId = passiveLookDebugSnapshotId;
+            ClearPassiveLookOriginalPose("transferred to pre-kiss snapshot");
+            DebugLog("SNAPSHOT", $"Transferred passive-look snapshot #{transferredSnapshotId} into the pre-kiss snapshot for {npc.Name}: facing={facing}, frame={frame}.");
+            return true;
+        }
+        private bool HasSpecialSpriteAnimation(NPC npc)
+        {
+            if (npc == null || npc.Sprite == null)
+                return false;
+
+            return npc.Sprite.CurrentAnimation != null;
+        }
+
+        private bool CanSafelyTurnNpcForPassiveLook(NPC npc)
+        {
+            if (npc == null)
+                return false;
+
+            if (passiveLookBlockAfterDialogueTimer > 0)
+                return false;
+
+            if (npc.controller != null)
+                return false;
+
+            if (npc.isMoving())
+                return false;
+
+            if (npc.movementPause > 0)
+                return false;
+
+            if (npc.CurrentDialogue != null && npc.CurrentDialogue.Count > 0)
+                return false;
+
+            if (Game1.dialogueUp || Game1.activeClickableMenu != null)
+                return false;
+
+            if (HasSpecialSpriteAnimation(npc))
+                return false;
+
+            return true;
+        }
+
+        private void RememberPassiveLookOriginalPose(NPC npc)
+        {
+            if (npc == null || npc.Sprite == null || npc.currentLocation == null)
+                return;
+
+            // If an original pose is already saved for this NPC,
+            // never overwrite it while the NPC hasn't moved or changed state.
+            if (passiveLookRestoreActive && passiveLookRestoreNpcName == npc.Name)
+            {
+                passiveLookRestoreTimer = Math.Max(passiveLookRestoreTimer, 900);
+                return;
+            }
+
+            passiveLookRestoreActive = true;
+            passiveLookRestoreNpcName = npc.Name;
+
+            // First real pose before turning to face the player.
+            passiveLookRestoreFacing = npc.FacingDirection;
+            passiveLookRestoreFrame = npc.Sprite.CurrentFrame;
+
+            // Store where the NPC was when this pose was saved.
+            passiveLookRestoreTile = npc.TilePoint;
+            passiveLookRestoreLocationName = npc.currentLocation.NameOrUniqueName;
+
+            passiveLookRestoreTimer = 900;
+            passiveLookDebugSnapshotId = GetNextDebugSnapshotId();
+            passiveLookRestoreLogged = false;
+            DebugLog("PASSIVE", $"Captured passive-look snapshot #{passiveLookDebugSnapshotId}: npc={npc.Name}, location={passiveLookRestoreLocationName}, tile={passiveLookRestoreTile.X},{passiveLookRestoreTile.Y}, facing={passiveLookRestoreFacing}, frame={passiveLookRestoreFrame}.");
+        }
+        private void ClearPassiveLookOriginalPose(string reason = "cleared")
+        {
+            if (passiveLookRestoreActive)
+                DebugLog("PASSIVE", $"Discarded passive-look snapshot #{passiveLookDebugSnapshotId} ({reason}): npc={passiveLookRestoreNpcName}, location={passiveLookRestoreLocationName}, tile={passiveLookRestoreTile.X},{passiveLookRestoreTile.Y}, facing={passiveLookRestoreFacing}, frame={passiveLookRestoreFrame}.");
+
+            passiveLookRestoreActive = false;
+            passiveLookRestoreNpcName = "";
+            passiveLookRestoreFacing = -1;
+            passiveLookRestoreFrame = -1;
+            passiveLookRestoreTimer = 0;
+            passiveLookRestoreTile = Point.Zero;
+            passiveLookRestoreLocationName = "";
+            passiveLookDebugSnapshotId = 0;
+            passiveLookRestoreLogged = false;
+        }
+
+        private void RestorePassiveLookOriginalPose(NPC npc)
+        {
+            if (npc == null || npc.Sprite == null)
+                return;
+
+            if (!passiveLookRestoreActive)
+                return;
+
+            if (passiveLookRestoreNpcName != npc.Name)
+                return;
+
+            // Don't restore over active movement or a live controller.
+            // If the NPC started walking, the saved pose is no longer valid.
+            if (npc.controller != null || npc.isMoving())
+            {
+                ClearPassiveLookOriginalPose("NPC resumed movement or gained a controller");
+                return;
+            }
+
+            // BUGFIX: this used to also bail out (clearing without ever restoring) whenever
+            // HasSpecialSpriteAnimation(npc) was true — but that's true very often even for a
+            // completely stationary NPC, since vanilla's own small periodic idle fidget
+            // animations set Sprite.CurrentAnimation briefly and constantly. That meant this
+            // function almost never actually got to run the facing restore below — it just kept
+            // discarding the memory instead, leaving the NPC stuck facing sideways forever. A
+            // passing fidget animation doesn't affect FacingDirection, so there's no real
+            // conflict in restoring it regardless.
+
+            if (passiveLookRestoreFacing >= 0)
+                npc.FacingDirection = passiveLookRestoreFacing;
+
+            if (passiveLookRestoreFrame >= 0)
+                npc.Sprite.CurrentFrame = passiveLookRestoreFrame;
+
+            npc.Sprite.UpdateSourceRect();
+
+            if (!passiveLookRestoreLogged)
+            {
+                passiveLookRestoreLogged = true;
+                DebugLog("PASSIVE", () => $"Restored passive-look snapshot #{passiveLookDebugSnapshotId} after player moved away: {DescribeNpcDebugState(npc)}.");
+            }
+
+            // Do NOT clear here.
+            // The original pose stays saved until the NPC moves or changes state.
+        }
+        private void UpdatePassiveLookRestoreTimer(NPC npc, float distance)
+        {
+            bool dialogueOrMenuOpenNow = Game1.dialogueUp || Game1.activeClickableMenu != null;
+
+            if (passiveLookBlockAfterDialogueTimer > 0)
+                passiveLookBlockAfterDialogueTimer--;
+
+            if (passiveLookDialogueWasOpenLastTick && !dialogueOrMenuOpenNow)
+            {
+                // After a dialogue or menu closes, briefly block the pose save
+                // to avoid saving the post-dialogue pose as the original.
+                passiveLookBlockAfterDialogueTimer = 180;
+            }
+
+            passiveLookDialogueWasOpenLastTick = dialogueOrMenuOpenNow;
+
+            if (!passiveLookRestoreActive)
+                return;
+
+            if (npc == null || npc.Name != passiveLookRestoreNpcName)
+            {
+                ClearPassiveLookOriginalPose("active romantic NPC changed");
+                return;
+            }
+
+            // If a dialogue or menu is open, don't restore and don't clear.
+            // Keep the first saved original pose.
+            if (dialogueOrMenuOpenNow)
+            {
+                passiveLookRestoreTimer = Math.Max(passiveLookRestoreTimer, 900);
+                return;
+            }
+
+            // BUGFIX: this used to lump npc.controller/isMoving/location-or-tile-change/
+            // HasSpecialSpriteAnimation all together into one "changedState" check that called
+            // ClearPassiveLookOriginalPose() — which only forgets the saved pose, it never
+            // actually sets the NPC's facing back. HasSpecialSpriteAnimation in particular
+            // (npc.Sprite.CurrentAnimation != null) goes true very often even for a genuinely
+            // stationary NPC — vanilla's own small periodic idle fidget animations trigger it
+            // constantly — so the memory was usually getting silently discarded within a second
+            // or two of him turning to look, long before the distance check ever got a chance to
+            // run, leaving him stuck facing sideways forever with nothing left to restore him.
+            //
+            // Genuine movement (a real controller, or actually walking) is the only case where
+            // forcing his facing back would visibly fight what's driving him — that's the only
+            // case that should abandon the memory without restoring. A changed location/tile
+            // means the saved pose no longer applies to where he is now, so that's abandoned
+            // without restoring too. Everything else (distance, or a passing idle animation)
+            // should actually restore his facing, not just quietly give up on it.
+            bool isActivelyMovingOrControlled =
+                npc.controller != null ||
+                npc.isMoving();
+
+            if (isActivelyMovingOrControlled)
+            {
+                ClearPassiveLookOriginalPose("NPC resumed movement or gained a controller");
+                return;
+            }
+
+            bool locationOrTileChanged =
+                npc.currentLocation == null ||
+                npc.currentLocation.NameOrUniqueName != passiveLookRestoreLocationName ||
+                npc.TilePoint != passiveLookRestoreTile;
+
+            if (locationOrTileChanged)
+            {
+                ClearPassiveLookOriginalPose("NPC changed location or tile");
+                return;
+            }
+
+            // Restore once the player has clearly moved away — Sheilinha adjusted this from an
+            // initial 260f up to 600f after checking in-game that 260f still looked too close.
+            bool shouldRestore =
+                distance >= 600f;
+
+            if (shouldRestore)
+            {
+                RestorePassiveLookOriginalPose(npc);
+                return;
+            }
+
+            // Keep the memory alive while the NPC remains idle in the same state.
+            passiveLookRestoreTimer = Math.Max(passiveLookRestoreTimer, 900);
+        }
+        // ===================================================================
+        // SEGUINDO COM O OLHAR
+        // ===================================================================
+        private void UpdatePartnerLookAtPlayer(NPC npc, float distance)
+        {
+            if (npc == null || !Context.IsWorldReady)
+                return;
+
+            UpdatePassiveLookRestoreTimer(npc, distance);
+
+            if (passiveLookBlockAfterDialogueTimer > 0)
+                return;
+
+            if (IsNpcBusyForPassiveReaction(npc))
+                return;
+
+            if (!CanSafelyTurnNpcForPassiveLook(npc))
+                return;
+
+            bool taDormindo =
+                (Game1.timeOfDay >= 2200 && Game1.currentLocation.Name == "FarmHouse");
+
+            bool shouldLook =
+                distance < 220f &&
+                distance > 60f &&
+                !taDormindo &&
+                !didReactThisTick;
+
+            if (!shouldLook)
+            {
+                // Don't restore immediately.
+                // Let UpdatePassiveLookRestoreTimer decide when to return to the original pose.
+                return;
+            }
+
+            Vector2 diff = Game1.player.Position - npc.Position;
+
+            int playerDirection = Math.Abs(diff.X) > Math.Abs(diff.Y)
+                ? (diff.X > 0 ? 1 : 3)
+                : (diff.Y > 0 ? 2 : 0);
+
+            // "Eyes on the back of his head" fix: if the player is directly behind the NPC
+            // (opposite of whichever way he's currently facing), he shouldn't notice/turn to
+            // look — he can't see behind himself. Facing direction: 0=up, 1=right, 2=down,
+            // 3=left; opposite pairs are (0,2) and (1,3), i.e. (dir + 2) % 4. Checked before
+            // RememberPassiveLookOriginalPose so bailing here leaves no state behind — no pose
+            // saved, no restore timer started, nothing to undo.
+            int oppositeOfCurrentFacing = (npc.FacingDirection + 2) % 4;
+            if (playerDirection == oppositeOfCurrentFacing)
+                return;
+
+            RememberPassiveLookOriginalPose(npc);
+
+            npc.faceDirection(playerDirection);
+
+            passiveLookRestoreTimer = Math.Max(passiveLookRestoreTimer, 180); // 3 segundos
+        }
+
+        // =========================================================================
+        // IF THE PLAYER IS FAR ENOUGH AWAY BUT STILL WITHIN NOTICE RANGE, THE PARTNER REACTS
+        // =========================================================================
+        private void UpdatePartnerNoticeFromDistance(NPC npc, float distance)
+        {
+            if (npc == null || !Context.IsWorldReady)
+                return;
+
+            if (IsNpcBusyForPassiveReaction(npc))
+            {
+                lastNoticeDistance = distance;
+                return;
+            }
+
+            const float minNoticeDistance = 300f; // Below this the partner already notices naturally, no "notice from afar" reaction needed.
+            const float maxNoticeDistance = 600f; // Above this the partner can't see the player, so a "notice from afar" reaction makes no sense.
+            const float approachThreshold = 8f;   // Minimum distance the player must close before the partner reacts, to avoid reactions when just passing by.
+
+            bool isInNoticeZone = distance < maxNoticeDistance && distance > minNoticeDistance;
+            bool hadPreviousDistance = lastNoticeDistance >= 0f;
+            bool wasPreviouslyOutsideNoticeZone =
+                !hadPreviousDistance ||
+                lastNoticeDistance >= maxNoticeDistance ||
+                lastNoticeDistance <= minNoticeDistance;
+
+            bool playerJustEnteredNoticeZone =
+                hadPreviousDistance &&
+                wasPreviouslyOutsideNoticeZone &&
+                isInNoticeZone &&
+                distance < lastNoticeDistance - approachThreshold;
+
+            bool playerIsLeaving =
+                hadPreviousDistance &&
+                distance > lastNoticeDistance + approachThreshold;
+
+            if (distance <= minNoticeDistance)
+            {
+                wasInNoticeZone = false;
+                lastNoticeDistance = distance;
+                return;
+            }
+
+            if (!isInNoticeZone)
+            {
+                wasInNoticeZone = false;
+            }
+
+            if (playerIsLeaving)
+            {
+                wasInNoticeZone = false;
+            }
+
+            if (!npc.isSleeping.Value &&
+                Game1.timeOfDay < 2400 &&
+                isInNoticeZone &&
+                !wasInNoticeZone &&
+                playerJustEnteredNoticeZone &&
+                npc.controller == null &&
+                cooldown <= 0 &&
+                noticeEmoteCooldown <= 0 &&
+                passiveLookBlockAfterDialogueTimer <= 0 &&
+                talkedToPartnerToday &&
+                !didReactThisTick)
+            {
+                if (!CanSafelyTurnNpcForPassiveLook(npc))
+                {
+                    lastNoticeDistance = distance;
+                    return;
+                }
+
+                RememberPassiveLookOriginalPose(npc);
+
+                Vector2 diff = Game1.player.Position - npc.Position;
+
+                if (Math.Abs(diff.X) > Math.Abs(diff.Y))
+                    npc.faceDirection(diff.X > 0 ? 1 : 3);
+                else
+                    npc.faceDirection(diff.Y > 0 ? 2 : 0);
+
+                passiveLookRestoreTimer = 90;
+
+                int reaction = random.Next(4);
+                switch (reaction)
+                {
+                    case 0: npc.doEmote(20); break;
+                    case 1: npc.doEmote(32); break;
+                    case 2: npc.doEmote(60); break;
+                    case 3: npc.doEmote(56); break;
+                }
+
+                wasInNoticeZone = true;
+
+                noticeEmoteCooldown = 3600;
+                cooldown = 180;
+                didReactThisTick = true;
+            }
+
+            lastNoticeDistance = distance;
+        }
+    }
+}

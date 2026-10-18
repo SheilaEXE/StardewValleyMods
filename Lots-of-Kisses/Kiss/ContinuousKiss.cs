@@ -1,0 +1,738 @@
+using Microsoft.Xna.Framework;
+using StardewModdingAPI;
+using StardewValley;
+using StardewValley.BellsAndWhistles;
+using StardewValley.GameData.Characters;
+using System;
+using System.Collections.Generic;
+
+namespace LotsOfKisses
+{
+    // Multi-kiss (continuous kiss) system: starting/ending a chain, tiers, public dialogue, and the tier-3 player lean-in visual effect.
+    public partial class ModEntry
+    {
+        internal static int GetContinuousKissTierDurationMs(int kissTier)
+        {
+            return kissTier switch
+            {
+                1 => 700,
+                2 => 2000,
+                3 => 4000,
+                _ => bumpKissVisualDelayMs
+            };
+        }
+
+        // Returns true if the vanilla kiss fired on this attempt (informational only — no longer
+        // gates whether the chain activates, see the revert note near TryCheckActionForAutoKiss...
+        // in Kiss.cs: npc.checkAction()'s raw boolean return isn't a reliable "a kiss specifically
+        // happened" signal, since checkAction is the general click-interaction handler covering
+        // dialogue/gifts/quests/etc too — gating the whole chain on it broke normal kissing).
+        private bool StartContinuousKiss(NPC npc, int kissTier, bool isNewSequence = false, bool manualRightClick = false)
+        {
+            if (npc == null || npc.currentLocation != Game1.player.currentLocation)
+            {
+                DebugLog("MULTIKISS", $"Start rejected: NPC is null or not in the player's location (npc={npc?.Name ?? "null"}, tier={kissTier}).");
+                return false;
+            }
+
+            if (ShouldBlockKissDuringStardewSquadTask(npc))
+            {
+                DebugLog("MULTIKISS", () => $"Start rejected because Stardew Squad task interruption is disabled: {DescribeNpcDebugState(npc)}.");
+                return false;
+            }
+
+            // Capture clears the NPC's current animation, so check a brand-new sequence
+            // while the original pose is still visible. Restarting an existing sequence
+            // uses the pose already owned by Lots of Kisses.
+            if (isNewSequence && ShouldBlockKissForSpecialAnimation(npc))
+                return false;
+
+            if (isNewSequence)
+            {
+                // publicMultiKiss should be limited to once per multi-kiss chain, not once forever.
+                // The flag is set when the dialogue opens; rearm it only when the player starts
+                // a brand-new multi-kiss chain, so repeated cycles in the same chain don't spam it.
+                publicMultiKissDialogueTriggered = false;
+                pendingPublicMultiKissDialogue = false;
+                pendingPublicMultiKissDialogueNpc = null;
+                pendingPublicMultiKissDialogueLine = null;
+                continuousKissCyclesDone = 0;
+            }
+
+            // A queued NPC dialogue is preserved by the simulated click; only an open dialogue/menu
+            // should block starting a new continuous kiss.
+            if (IsAutoKissBlockedByOpenDialogueOrMenu())
+            {
+                DebugLog("MULTIKISS", $"Start rejected for {npc.Name}: dialogue or menu is open.");
+                return false;
+            }
+
+            if (!manualRightClick && GetApproachKissBlockTimer(npc) > 0)
+            {
+                // Automatic proximity checks run every tick. Record this unchanged rejection only
+                // once per blocked period instead of flooding the diagnostic log.
+                if (continuousKissApproachBlockDebugLoggedByNpc.Add(npc.Name))
+                    DebugLog("MULTIKISS", $"Start rejected for {npc.Name}: approach-kiss block timer is active.");
+                return false;
+            }
+
+            continuousKissApproachBlockDebugLoggedByNpc.Remove(npc.Name);
+
+            // Capture this before the kiss path halts the NPC. A walking NPC keeps the same
+            // controller throughout the sequence and can resume it naturally after the 600px
+            // post-kiss look wait.
+            bool hadControllerAtSequenceStart = isNewSequence && npc.controller != null;
+
+            CaptureNpcPreKissSpecialAction(npc);
+
+            int durationMs = GetContinuousKissTierDurationMs(kissTier);
+
+            activeKissVisualDelayMs = durationMs;
+
+            // The dialogue itself is intentionally left alone here (never cleared) so it stays
+            // available for the player to open manually afterward — only the automatic pop-up
+            // triggered by this simulated click is suppressed by the Harmony patch.
+            //
+            // BUGFIX (ghost kiss): this used to activate the whole multi-kiss chain (hearts,
+            // dialogue, movementPause hold) unconditionally regardless of whether the real
+            // vanilla kiss actually fired — a "ghost" multi-kiss could run entirely through this
+            // mod's own effects with no real vanilla kiss animation ever happening. Confirmed via
+            // diagnostic logging that TryTriggerRomanticContinuousKiss's return value is reliable
+            // now (it's built on the same CanMove-based confirmation as the bump kiss trigger —
+            // see TryCheckActionForAutoKissWithoutDialogue in Kiss.cs) — abort cleanly if it's
+            // false, restoring the captured pose since nothing else has touched the NPC yet.
+            bool vanillaTriggered = TryTriggerRomanticContinuousKiss(npc, ignoreApproachBlock: manualRightClick);
+            if (!vanillaTriggered)
+            {
+                DebugLog("MULTIKISS", () => $"Start failed because the romantic kiss visual did not trigger: {DescribeNpcDebugState(npc)}.");
+                TryRestoreNpcPreKissSpecialAction(clearAfterRestore: true);
+                return false;
+            }
+
+            ResetContinuousKissPlayerLeanEffect(true);
+
+            continuousKissActive = true;
+            continuousKissNpc = npc;
+            continuousKissTimer = MsToTicks(durationMs);
+            continuousKissHeartTriggered = false;
+            continuousKissSmokeTriggered = false;
+            continuousKissTier = kissTier;
+            continuousKissPendingRestart = false;
+            continuousKissGapTimer = 0;
+            continuousKissTouchHoldTimer = 0;
+            continuousKissWasTouchingPartner = true;
+            continuousKissSingleCycle = false;
+            continuousKissSingleCycleFinishing = false;
+            if (isNewSequence)
+                continuousKissNpcHadControllerAtSequenceStart = hadControllerAtSequenceStart;
+            DebugLog("MULTIKISS", () => $"Started {(isNewSequence ? "new sequence" : "cycle")} with {npc.Name}: tier={kissTier}, durationMs={durationMs}, manual={manualRightClick}, completedCycles={continuousKissCyclesDone}.");
+            return true;
+        }
+
+        private bool TryTriggerPublicMultiKissDialogue(NPC npc)
+        {
+            if (npc == null || Game1.player == null)
+                return false;
+
+            if (publicMultiKissDialogueTriggered)
+                return false;
+
+            // The partner only becomes embarrassed enough to interrupt when somebody actually
+            // noticed this multi-kiss, turned to watch, and is still visible to the player.
+            if (!HasActiveBystanderWatchingOnScreen())
+                return false;
+
+            string locName = npc.currentLocation?.Name ?? "";
+            if (locName == "Farm" || locName == "FarmHouse")
+                return false;
+
+            if (continuousKissCyclesDone < 3)
+                return false;
+
+            int chance = continuousKissCyclesDone switch
+            {
+                3 => 10,
+                _ => 20
+            };
+
+            if (random.Next(100) >= chance)
+                return false;
+
+            // publicMultiKiss was split into two separate dialogue pools: OutdoorKisses for
+            // outside locations and IndoorKisses for anything enclosed (houses, shops, etc),
+            // each NPC having 13 lines per pool instead of the old single 15-line pool.
+            bool isOutdoors = npc.currentLocation?.IsOutdoors ?? true;
+            string dialoguePrefix = isOutdoors ? "OutdoorKisses" : "IndoorKisses";
+
+            string line = GetDialogueLine(dialoguePrefix, npc);
+            if (string.IsNullOrEmpty(line))
+                return false;
+
+            publicMultiKissDialogueTriggered = true;
+
+            // If a spectator has just spoken, keep the multi-kiss running while their bubble
+            // receives its full three seconds on screen. Opening the large NPC dialogue box in
+            // this same tick would draw over world-space speech bubbles (especially near the
+            // bottom of indoor maps), making them look as though they vanished instantly.
+            // No new crowd lines are rolled while this interruption is armed, so the wait can't
+            // extend indefinitely.
+            if (HasActiveCrowdReactionSpeechBubble())
+            {
+                pendingPublicMultiKissDialogue = true;
+                pendingPublicMultiKissDialogueNpc = npc;
+                pendingPublicMultiKissDialogueLine = line;
+                DebugLog("MULTIKISS", $"Public interruption armed for {npc.Name}; waiting for existing spectator bubbles and a clean cycle boundary.");
+                return false;
+            }
+
+            OpenPublicMultiKissDialogue(npc, line);
+            return true;
+        }
+
+        /// <summary>
+        /// Opens an interruption that was armed while a spectator bubble was visible. This is
+        /// called only at a kiss-cycle boundary, so the current kiss animation finishes cleanly
+        /// instead of being cut off midway through a tier.
+        /// </summary>
+        private bool TryOpenPendingPublicMultiKissDialogue(NPC npc)
+        {
+            if (!pendingPublicMultiKissDialogue)
+                return false;
+
+            if (npc == null
+                || pendingPublicMultiKissDialogueNpc != npc
+                || npc.currentLocation != Game1.player?.currentLocation)
+            {
+                pendingPublicMultiKissDialogue = false;
+                pendingPublicMultiKissDialogueNpc = null;
+                pendingPublicMultiKissDialogueLine = null;
+                DebugLog("MULTIKISS", "Pending public interruption canceled because its NPC or location changed.");
+                return false;
+            }
+
+            if (HasActiveCrowdReactionSpeechBubble())
+                return false;
+
+            string line = pendingPublicMultiKissDialogueLine;
+            pendingPublicMultiKissDialogue = false;
+            pendingPublicMultiKissDialogueNpc = null;
+            pendingPublicMultiKissDialogueLine = null;
+
+            if (string.IsNullOrEmpty(line))
+                return false;
+
+            OpenPublicMultiKissDialogue(npc, line);
+            DebugLog("MULTIKISS", $"Pending public interruption opened for {npc.Name} after spectator bubbles closed.");
+            return true;
+        }
+
+        private void OpenPublicMultiKissDialogue(NPC npc, string line)
+        {
+            if (npc == null || string.IsNullOrEmpty(line))
+                return;
+
+            continuousKissActive = false;
+            continuousKissPendingRestart = false;
+            continuousKissGapTimer = 0;
+            BeginPostMultiKissLookWait(npc, "public interruption");
+
+            // Push our line on top of existing dialogue instead of clearing the stack.
+            // Daily, quest, event, and other-mod dialogue must remain available afterward.
+            npc.CurrentDialogue.Push(new Dialogue(npc, "", line));
+            Game1.drawDialogue(npc);
+
+            pendingPublicMultiKissShyEmote = true;
+            pendingPublicMultiKissShyNpc = npc;
+            pendingPublicMultiKissShyEmoteTimer = 30;
+            pendingPublicMultiKissShyEmoteStarted = false;
+            npc.modData[PublicMultiKissInterruptionModDataKey] = "1";
+            DebugLog("MULTIKISS", $"Public interruption dialogue opened for {npc.Name} after {continuousKissCyclesDone} completed cycle(s).");
+
+            ScheduleBystanderRestore(npc);
+            bystanderRestore.ForceStart = true;
+
+            didReactThisTick = true;
+            cooldown = 120;
+            dialogueCooldown = 90;
+        }
+
+        // Slides the farmer a few pixels toward their partner during tier 3.
+        // Applies only the delta between the previous and the new offset,
+        // so the player doesn't get locked to an absolute position if they try to move.
+        private void StartContinuousKissPlayerLeanIn(NPC partner)
+        {
+            if (Game1.player == null || partner == null)
+                return;
+
+            Vector2 direction = GetContinuousKissPlayerLeanDirection(partner);
+            if (direction == Vector2.Zero)
+                return;
+
+            continuousKissPlayerLeanDirection = direction;
+            StartContinuousKissPlayerLeanAnimation(direction * ContinuousKissTier3LeanPixels, ContinuousKissTier3LeanAnimationTicks);
+
+            // Play sound at the moment the farmer starts leaning in.
+            PlayHugSound();
+
+            continuousKissPlayerLeanInTriggered = true;
+        }
+
+        private void StartContinuousKissPlayerLeanOut()
+        {
+            if (Game1.player == null)
+                return;
+
+            StartContinuousKissPlayerLeanAnimation(Vector2.Zero, ContinuousKissTier3LeanAnimationTicks);
+            continuousKissPlayerLeanOutTriggered = true;
+        }
+
+        private Vector2 GetContinuousKissPlayerLeanDirection(NPC partner)
+        {
+            if (Game1.player == null || partner == null)
+                return Vector2.Zero;
+
+            // First tries to use the direction the farmer is currently facing.
+            if (Game1.player.FacingDirection == 1)
+                return new Vector2(1f, 0f); // direita
+
+            if (Game1.player.FacingDirection == 3)
+                return new Vector2(-1f, 0f); // esquerda
+
+            // Fallback: if the farmer isn't facing left or right for any reason,
+            // fall back to the horizontal position of the partner.
+            float diffX = partner.Position.X - Game1.player.Position.X;
+
+            if (Math.Abs(diffX) > 0.1f)
+                return new Vector2(Math.Sign(diffX), 0f);
+
+            return Vector2.Zero;
+        }
+
+        private void StartContinuousKissPlayerLeanAnimation(Vector2 targetOffset, int durationTicks)
+        {
+            continuousKissPlayerLeanAnimationActive = true;
+            continuousKissPlayerLeanStartOffset = continuousKissPlayerLeanAppliedOffset;
+            continuousKissPlayerLeanTargetOffset = targetOffset;
+            continuousKissPlayerLeanTimer = 0;
+            continuousKissPlayerLeanDuration = Math.Max(1, durationTicks);
+        }
+
+        private void UpdateContinuousKissPlayerLeanEffect()
+        {
+            if (!continuousKissPlayerLeanAnimationActive || Game1.player == null)
+                return;
+
+            // Keep the visual offset exactly where it is while inventory, map, GMCM, or
+            // another clickable menu is open. The animation resumes from the same tick.
+            if (Game1.activeClickableMenu != null)
+                return;
+
+            continuousKissPlayerLeanTimer++;
+
+            float progress = Math.Min(1f, continuousKissPlayerLeanTimer / (float)continuousKissPlayerLeanDuration);
+
+            // Eases in/out to avoid a pixel-teleport feel.
+            progress = progress * progress * (3f - 2f * progress);
+
+            Vector2 desiredOffset = Vector2.Lerp(continuousKissPlayerLeanStartOffset, continuousKissPlayerLeanTargetOffset, progress);
+            ApplyContinuousKissPlayerLeanOffset(desiredOffset);
+
+            if (continuousKissPlayerLeanTimer >= continuousKissPlayerLeanDuration)
+                continuousKissPlayerLeanAnimationActive = false;
+        }
+
+        private void ApplyContinuousKissPlayerLeanOffset(Vector2 desiredOffset)
+        {
+            if (Game1.player == null)
+                return;
+
+            Vector2 delta = desiredOffset - continuousKissPlayerLeanAppliedOffset;
+            if (delta.LengthSquared() <= 0.0001f)
+                return;
+
+            Game1.player.Position = Game1.player.Position + delta;
+            continuousKissPlayerLeanAppliedOffset = desiredOffset;
+        }
+
+        private void ResetContinuousKissPlayerLeanEffect(bool applyInverseOffset = true)
+        {
+            if (applyInverseOffset && Game1.player != null)
+                ApplyContinuousKissPlayerLeanOffset(Vector2.Zero);
+
+            continuousKissPlayerLeanInTriggered = false;
+            continuousKissPlayerLeanOutTriggered = false;
+            continuousKissPlayerLeanAnimationActive = false;
+            continuousKissPlayerLeanDirection = Vector2.Zero;
+            continuousKissPlayerLeanStartOffset = Vector2.Zero;
+            continuousKissPlayerLeanTargetOffset = Vector2.Zero;
+            continuousKissPlayerLeanAppliedOffset = Vector2.Zero;
+            continuousKissPlayerLeanTimer = 0;
+            continuousKissPlayerLeanDuration = 0;
+        }
+
+        // Forces the continuous kiss to end when normal end conditions aren't available.
+        // This emergency path deliberately never touches the NPC's controller or schedule.
+        private void ReleasePlayerAfterKissWithoutOverridingCurrentPose()
+        {
+            if (Game1.player == null)
+                return;
+
+            Game1.freezeControls = false;
+
+            // Sitting owns its own movement and sprite state. Forcing CanMove or calling
+            // completelyStopAnimatingOrDoingAction here replaces the seated frame with the
+            // farmer's carrying/arms-up pose, and repeated cleanup calls keep it stuck there.
+            if (Game1.player.IsSitting())
+                return;
+
+            Game1.player.CanMove = true;
+            Game1.player.completelyStopAnimatingOrDoingAction();
+        }
+
+        private void ForceEndContinuousKiss(NPC npc, string reason = "forced cleanup")
+        {
+            // Keep the original participant before ResetContinuousKissState clears the field.
+            // This matters when GetPartner() has already changed to a different romantic NPC.
+            NPC activeNpc = continuousKissNpc ?? npc;
+            DebugLog("MULTIKISS", () => $"Force-ending sequence ({reason}): {DescribeNpcDebugState(activeNpc)}, tier={continuousKissTier}, completedCycles={continuousKissCyclesDone}, active={continuousKissActive}, pendingRestart={continuousKissPendingRestart}.");
+
+            ScheduleBystanderRestore(activeNpc);
+
+            ReleasePlayerAfterKissWithoutOverridingCurrentPose();
+
+            if (activeNpc?.Sprite != null)
+            {
+                bool hasSnapshot = HasNpcPreKissSpecialAction(activeNpc);
+                bool snapshotMatchesCurrentLocation =
+                    hasSnapshot &&
+                    activeNpc.currentLocation == preKissSpecialActionSnapshot.Location;
+                bool deferStationaryRestore =
+                    snapshotMatchesCurrentLocation &&
+                    Game1.player != null &&
+                    !Game1.player.IsSitting() &&
+                    !Game1.eventUp &&
+                    BeginPostMultiKissLookWait(activeNpc, $"forced end: {reason}");
+                bool restoreSpecialActionNow =
+                    snapshotMatchesCurrentLocation &&
+                    !deferStationaryRestore &&
+                    preKissSpecialActionSnapshot.RestorePositionWhenPlayerLeaves == false &&
+                    activeNpc.currentLocation != null;
+
+                if (deferStationaryRestore)
+                {
+                    ApplyPostMultiKissLookAtPlayer(activeNpc, 6);
+                }
+                else if (restoreSpecialActionNow)
+                {
+                    // Special/scripted poses can be restored immediately. Plain idle snapshots
+                    // stay queued so their saved position is restored only after the player leaves.
+                    TryRestoreNpcPreKissSpecialAction(clearAfterRestore: true);
+                }
+                else
+                {
+                    activeNpc.movementPause = 0;
+                    activeNpc.Sprite.StopAnimation();
+                    activeNpc.Sprite.ClearAnimation();
+                    activeNpc.Sprite.CurrentAnimation = null;
+
+                    if (snapshotMatchesCurrentLocation)
+                    {
+                        activeNpc.FacingDirection = preKissSpecialActionSnapshot.FacingDirection;
+                        activeNpc.flip = preKissSpecialActionSnapshot.Flip;
+                        activeNpc.Sprite.CurrentFrame = preKissSpecialActionSnapshot.CurrentFrame;
+                    }
+                    else
+                    {
+                        activeNpc.flip = false;
+                        activeNpc.Sprite.CurrentFrame = GetNpcIdleFrameForDirection(activeNpc.FacingDirection);
+
+                        if (hasSnapshot)
+                            ClearNpcPreKissSpecialAction(activeNpc);
+                    }
+
+                    activeNpc.Sprite.UpdateSourceRect();
+                }
+            }
+
+            ResetContinuousKissState();
+            ResetPostKissState();
+
+            kissProximityTimer = 0;
+            playerWasTouchingPartner = false;
+            continuousKissTouchHoldTimer = 0;
+            continuousKissWasTouchingPartner = false;
+
+            activeKissVisualDelayMs = bumpKissVisualDelayMs;
+        }
+
+        // Releases only the visual/movement state owned by the kiss. The NPC's controller,
+        // queued schedule paths, and unrelated animations belong to vanilla or other mods.
+        private void WakeNpcAfterMultiKiss(NPC npc)
+        {
+            if (npc == null)
+                return;
+
+            ReleasePlayerAfterKissWithoutOverridingCurrentPose();
+
+            npc.movementPause = 0;
+
+            if (IsNpcShowingKissVisual(npc))
+            {
+                npc.Sprite.StopAnimation();
+                npc.Sprite.ClearAnimation();
+                npc.Sprite.CurrentAnimation = null;
+                npc.flip = false;
+                npc.Sprite.CurrentFrame = GetNpcIdleFrameForDirection(npc.FacingDirection);
+                npc.Sprite.UpdateSourceRect();
+            }
+
+            playerWasTouchingPartner = false;
+            kissProximityTimer = 0;
+            activeKissVisualDelayMs = bumpKissVisualDelayMs;
+            continuousKissTouchHoldTimer = 0;
+            continuousKissWasTouchingPartner = false;
+        }
+
+        // =====================================================================
+        // CONTINUOUS KISS LOGIC
+        // =====================================================================
+        private void UpdateContinuousKissSystem(NPC partner)
+        {
+            if (partner == null)
+                return;
+
+            // This update runs whenever a romantic partner is present, even when no multi-kiss
+            // exists. Check ownership before reacting to the farmer's pose; otherwise merely
+            // sitting near a partner calls ForceEndContinuousKiss every tick.
+            if (!continuousKissActive && !continuousKissPendingRestart)
+                return;
+
+            // If the player sits down mid-chain (e.g. in a chair the NPC walked them next to),
+            // cleanly end the sequence instead of leaving it running with a seated player —
+            // ForceEndContinuousKiss releases the NPC properly, same as when they leave the
+            // location, rather than just silently skipping updates and leaving them stuck.
+            if (Game1.player.IsSitting())
+            {
+                ForceEndContinuousKiss(partner ?? continuousKissNpc, "player sat down");
+                return;
+            }
+
+            // Pause (don't cancel) the multi-kiss cycle while any menu is open — inventory,
+            // map, GMCM, etc. This is separate from the pending-dialogue block that was
+            // intentionally removed: an open menu means the player actively paused to look at
+            // something, so hearts/smoke effects shouldn't keep climbing behind it. The cycle
+            // picks back up exactly where it left off once the menu closes.
+            if (Game1.activeClickableMenu != null)
+                return;
+
+            if (continuousKissSingleCycleFinishing)
+            {
+                // Tier 3 gets to finish its smooth lean-out before the normal release path
+                // restores movement and the saved NPC pose. Tiers 1 and 2 finish next tick.
+                if (continuousKissPlayerLeanAnimationActive)
+                    return;
+
+                NPC completedNpc = continuousKissNpc;
+                ReleaseNpcAfterMultiKiss(completedNpc);
+                ResetContinuousKissState();
+                return;
+            }
+
+            if (continuousKissPendingRestart)
+            {
+                if (continuousKissNpc == null || continuousKissNpc.currentLocation != Game1.player.currentLocation)
+                {
+                    ForceEndContinuousKiss(partner ?? continuousKissNpc, "NPC changed location before cycle restart");
+                    return;
+                }
+
+                if (continuousKissGapTimer > 0)
+                    return;
+
+                float restartDistance = DistanceToPlayer(continuousKissNpc);
+                if (restartDistance > 72f)
+                {
+                    NPC postNpc = continuousKissNpc;
+                    string postLine = GetDialogueLine("kissReaction", postNpc);
+                    string publicLine = GetDialogueLine("PublicKissReaction", postNpc);
+
+                    DebugLog("MULTIKISS", $"Sequence ended during the inter-cycle gap because the player moved away from {postNpc.Name}: distance={restartDistance:0}/72, completedCycles={continuousKissCyclesDone}.");
+                    BeginPostMultiKissLookWait(postNpc, "inter-cycle distance ending");
+                    ResetContinuousKissState();
+                    activeKissVisualDelayMs = bumpKissVisualDelayMs;
+
+                    int delayedActionToken = delayedActionContextToken;
+                    DelayedAction.functionAfterDelay(() =>
+                    {
+                        if (!IsCurrentDelayedAction(delayedActionToken) || postNpc == null || postNpc.currentLocation != Game1.player.currentLocation)
+                            return;
+
+                        if (DistanceToPlayer(postNpc) >= 72f && Game1.activeClickableMenu == null)
+                        {
+                            if (!HasBystandersOnScreen() && !string.IsNullOrEmpty(postLine))
+                            {
+                                ShowTextAboveHeadWithPipeSupport(postNpc, postLine);
+                                dialogueCooldown = 120;
+                            }
+                            else if (HasBystandersOnScreen() && !string.IsNullOrEmpty(publicLine))
+                            {
+                                ShowTextAboveHeadWithPipeSupport(postNpc, publicLine);
+                                dialogueCooldown = 120;
+                            }
+                        }
+                    }, 200);
+
+                    return;
+                }
+
+                continuousKissPendingRestart = false;
+
+                // If the vanilla kiss doesn't fire for this next cycle, don't leave the chain in
+                // a stale "still active but nothing progressing" state — cleanly end it, same as
+                // any other abort path (releasing the NPC's pose/movementPause properly).
+                if (!StartContinuousKiss(continuousKissNpc, continuousKissTier, false))
+                    ForceEndContinuousKiss(continuousKissNpc, "next romantic kiss cycle failed to start");
+
+                return;
+            }
+
+            if (!continuousKissActive || continuousKissNpc == null)
+                return;
+
+            if (continuousKissNpc != partner || partner.currentLocation != Game1.player.currentLocation)
+            {
+                ForceEndContinuousKiss(partner, "active romantic partner or location changed");
+                return;
+            }
+
+            float distance = DistanceToPlayer(partner);
+
+            if (distance > 90f)
+            {
+                DebugLog("MULTIKISS", $"Sequence ended because player moved away from {partner.Name}: distance={distance:0}/90, completedCycles={continuousKissCyclesDone}.");
+                BeginPostMultiKissLookWait(partner, "normal distance ending");
+                NPC postNpc = partner;
+                string postLine = GetDialogueLine("kissReaction", postNpc);
+                string publicLine = GetDialogueLine("PublicKissReaction", postNpc);
+
+                ScheduleBystanderRestore(partner);
+                ResetContinuousKissState();
+                activeKissVisualDelayMs = bumpKissVisualDelayMs;
+
+                int delayedActionToken = delayedActionContextToken;
+                DelayedAction.functionAfterDelay(() =>
+                {
+                    if (!IsCurrentDelayedAction(delayedActionToken) || postNpc == null || postNpc.currentLocation != Game1.player.currentLocation)
+                        return;
+
+                    if (DistanceToPlayer(postNpc) >= 72f && Game1.activeClickableMenu == null)
+                    {
+                        if (!HasBystandersWithLineOfSight() && !string.IsNullOrEmpty(postLine))
+                        {
+                            ShowTextAboveHeadWithPipeSupport(postNpc, postLine);
+                            dialogueCooldown = 120;
+                        }
+                        else if (HasBystandersWithLineOfSight() && !string.IsNullOrEmpty(publicLine))
+                        {
+                            ShowTextAboveHeadWithPipeSupport(postNpc, publicLine);
+                            dialogueCooldown = 120;
+                        }
+                    }
+                }, 200);
+
+                return;
+            }
+
+            // StartContinuousKiss only marks the sequence active after the vanilla kiss fires,
+            // so no retry is needed while the sequence is already active.
+
+            if (continuousKissTimer > 0)
+            {
+                if (continuousKissTier == 2 && !continuousKissHeartTriggered)
+                {
+                    // Tier 2 inherited the old tier 3 mechanic:
+                    // 2-second kiss with a heart effect mid-cycle.
+                    int totalTicks = MsToTicks(2000);
+                    if (continuousKissTimer <= totalTicks / 2)
+                    {
+                        partner.doEmote(20);
+                        Game1.player.doEmote(20);
+                        continuousKissHeartTriggered = true;
+                    }
+                }
+                else if (continuousKissTier == 3)
+                {
+                    int totalTicks = MsToTicks(4000);
+                    int elapsedTicks = totalTicks - continuousKissTimer;
+
+                    // After 2.5 seconds: farmer slides a few pixels toward the partner.
+                    if (!continuousKissPlayerLeanInTriggered && elapsedTicks >= MsToTicks(ContinuousKissTier3LeanInDelayMs))
+                        StartContinuousKissPlayerLeanIn(partner);
+
+                    // After 1 second: heart effect on both the partner and the farmer.
+                    if (!continuousKissHeartTriggered && continuousKissTimer <= totalTicks - MsToTicks(1000))
+                    {
+                        partner.doEmote(20);
+                        Game1.player.doEmote(20);
+                        continuousKissHeartTriggered = true;
+                    }
+
+                    // After 3 seconds: custom blush smoke on the partner.
+                    if (!continuousKissSmokeTriggered && continuousKissTimer <= totalTicks - MsToTicks(3000))
+                    {
+                        ShowBlushSmoke(partner, 68);
+                        continuousKissSmokeTriggered = true;
+                    }
+                }
+
+                return;
+            }
+
+            if (continuousKissTier == 3 && !continuousKissPlayerLeanOutTriggered)
+                StartContinuousKissPlayerLeanOut();
+
+            if (continuousKissSingleCycle)
+            {
+                // This is a standalone manual tier, not a public multi-kiss. End without
+                // rolling another cycle, triggering bystanders, or opening an interruption.
+                continuousKissSingleCycleFinishing = true;
+                return;
+            }
+
+            continuousKissActive = false;
+            continuousKissCyclesDone++;
+            DebugLog("MULTIKISS", $"Completed cycle {continuousKissCyclesDone} with {partner.Name}: tier={continuousKissTier}.");
+
+            // The Cinderbox fallback owns a full-duration static kiss frame. Remove that frame
+            // before the inter-cycle gap so each new kiss visibly starts again, while keeping the
+            // original NPC snapshot queued for the final move-away restoration.
+            ClearDirectRomanticKissVisual(partner, holdForNextCycle: true);
+
+            if (pendingPublicMultiKissDialogue)
+            {
+                // Keep completing normal kiss cycles until every already-visible spectator
+                // bubble has finished. The interruption then opens at this clean cycle boundary.
+                if (TryOpenPendingPublicMultiKissDialogue(partner))
+                    return;
+            }
+            else
+            {
+                // Let the scene build naturally before anyone in the area can notice it.
+                if (continuousKissCyclesDone >= BystanderNoticeMinimumCompletedCycles)
+                    TriggerBystanderReactions(continuousKissTier, partner);
+
+                if (TryTriggerPublicMultiKissDialogue(partner))
+                    return;
+            }
+
+            // publicMultiKiss did not fire — kiss will restart. Schedule restore so bystanders
+            // don't stay frozen if the player moves away before publicMultiKiss ever triggers.
+            ScheduleBystanderRestore(partner);
+
+            continuousKissPendingRestart = true;
+            continuousKissGapTimer = 25;
+            continuousKissTier = RollContinuousKissTier();
+            DebugLog("MULTIKISS", $"Queued next cycle for {partner.Name}: nextTier={continuousKissTier}, gapTicks={continuousKissGapTimer}.");
+        }
+    }
+}

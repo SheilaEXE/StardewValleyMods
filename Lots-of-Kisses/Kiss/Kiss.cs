@@ -1,0 +1,1170 @@
+using Microsoft.Xna.Framework;
+using StardewModdingAPI;
+using StardewValley;
+using StardewValley.BellsAndWhistles;
+using StardewValley.GameData.Characters;
+using System;
+using System.Collections.Generic;
+
+namespace LotsOfKisses
+{
+    public partial class ModEntry
+    {
+        private bool TryCheckActionForAutoKissWithoutDialogue(NPC npc)
+        {
+            lastAutoKissClickWasBlockedDialogue = false;
+
+            if (npc == null || Game1.player == null || npc.currentLocation != Game1.player.currentLocation)
+                return false;
+
+            bool previousSuppress = suppressDialogueFromAutoKissClick;
+            NPC previousNpc = suppressDialogueAutoKissNpc;
+            bool previousSuppressed = suppressedDialogueDuringAutoKissClick;
+            bool previousKissPatchFlag = LotsOfKissesKissPatchActive;
+            bool previousPlayerAnimationStarted = autoKissPlayerAnimationStarted;
+
+            suppressDialogueFromAutoKissClick = true;
+            suppressDialogueAutoKissNpc = npc;
+            suppressedDialogueDuringAutoKissClick = false;
+            LotsOfKissesKissPatchActive = true;
+            autoKissPlayerAnimationStarted = false;
+
+            // Cross-mod signal (mirrors the modData handshake Outfit Reactions already uses):
+            // while this simulated click is in flight, tell Outfit Reactions' own NPC.checkAction
+            // Harmony prefix (which runs at Priority.First and checks its own pending-reaction
+            // state, not npc.CurrentDialogue) to step aside instead of hijacking the click into
+            // opening the outfit dialogue. Our own dialogue-stash above only satisfies vanilla's
+            // checkAction body and other mods reading CurrentDialogue — it can't reach a patch
+            // that ignores CurrentDialogue entirely. Only write/remove it at the outermost call
+            // (previousKissPatchFlag was false) so nested calls don't clear it early.
+            if (!previousKissPatchFlag && Game1.player?.modData != null)
+                Game1.player.modData[AutoKissClickActiveModDataKey] = "1";
+
+            // Some NPCs have a fixed "location override" line tied to their current pose/location
+            // (e.g. Sebastian playing video games, Abigail sitting on the couch) that never clears
+            // on its own — unlike a regular queued dialogue, it's recalculated fresh every time
+            // checkAction runs, so stashing CurrentDialogue alone doesn't help here. Suppressing it
+            // through NPC.HasLocationOverrideDialogue (Harmony Prefix) makes checkAction take
+            // the kiss branch instead, without needing to touch or restore anything on the NPC itself
+            // — the same override line is recalculated fresh next time the player clicks normally.
+            bool previousSuppressLocationOverride = suppressLocationOverrideDialogueDuringAutoKissClick;
+            suppressLocationOverrideDialogueDuringAutoKissClick = true;
+
+            // The vanilla checkAction, when it sees a pending CurrentDialogue on the NPC, opens
+            // that dialogue instead of running the kiss logic — it never reaches the animation
+            // code at all, even with the pop-up suppressed by our Harmony patch above. That's
+            // what caused "ghost kisses": the mod's own effects (heart, smoke) fired because they
+            // don't depend on checkAction, but the actual pose animation never played, since the
+            // native method took the "show dialogue" branch instead of the "kiss" branch.
+            // Temporarily stash the queued dialogue out of the NPC during this simulated click so
+            // checkAction takes the kiss branch, then restore it right after — the player still
+            // gets to read it manually later, exactly as before.
+            List<Dialogue> stashedDialogue = null;
+            if (npc.CurrentDialogue != null && npc.CurrentDialogue.Count > 0)
+            {
+                // Pop preserves top-to-bottom order; storing in that same order lets us Push
+                // back in reverse to reconstruct the identical stack afterward.
+                stashedDialogue = new List<Dialogue>(npc.CurrentDialogue.Count);
+                while (npc.CurrentDialogue.Count > 0)
+                    stashedDialogue.Add(npc.CurrentDialogue.Pop());
+            }
+
+            // NPC.checkAction also handles gifts. An automatic kiss is not a real action-button
+            // press, so temporarily hide the selected object while this simulated interaction is
+            // running. Restore the exact inventory slot in finally so the player keeps holding the
+            // same item and gift-confirmation mods never receive a synthetic gift attempt.
+            int stashedActiveObjectIndex = -1;
+            Item stashedActiveObject = null;
+            if (Game1.player.ActiveObject != null)
+            {
+                stashedActiveObjectIndex = Game1.player.CurrentToolIndex;
+                if (stashedActiveObjectIndex >= 0 && stashedActiveObjectIndex < Game1.player.Items.Count)
+                {
+                    stashedActiveObject = Game1.player.Items[stashedActiveObjectIndex];
+                    Game1.player.Items[stashedActiveObjectIndex] = null;
+                    DebugLog("KISS", $"Temporarily stashed the held item for an automatic kiss with {npc.Name}.");
+                }
+            }
+
+            try
+            {
+                bool result = npc.checkAction(Game1.player, npc.currentLocation);
+                bool dialogueWasBlocked = suppressedDialogueDuringAutoKissClick;
+                bool playerAnimationStarted = autoKissPlayerAnimationStarted;
+                bool npcKissVisualStarted = IsNpcShowingKissVisual(npc);
+
+                lastAutoKissClickWasBlockedDialogue = dialogueWasBlocked;
+
+                // NOTE: dialogueWasBlocked being true does NOT mean the kiss failed — checkAction
+                // can successfully process the kiss (result = true) while also, somewhere in the
+                // same call, tripping our dialogue-suppression patch for an unrelated reason (e.g.
+                // an internal dialogue check that always runs alongside the kiss branch). Treating
+                // "a dialogue was blocked" as "the kiss must have failed" was silently discarding
+                // successful kisses — the mod's own heart/smoke effects still fired (they don't
+                // depend on this return value), but the actual pose animation never played,
+                // because this method returned false even though checkAction had already
+                // performed the real kiss. Trust checkAction's own result instead.
+                if (dialogueWasBlocked && !result)
+                {
+                    kissBlockAfterDialogueTimer = Math.Max(kissBlockAfterDialogueTimer, 120);
+                    return false;
+                }
+
+                // checkAction is a general interaction handler, so its return value alone doesn't
+                // prove a kiss occurred. Prefer explicit visual evidence: our scoped PerformKiss
+                // patch records when it starts the player animation, and the NPC frame is checked
+                // independently. Keep CanMove only as a compatibility signal for another mod that
+                // may start its own kiss without going through our patch.
+                bool playerWasFrozenByRealKiss = !Game1.player.CanMove;
+                if (result && !playerAnimationStarted && !npcKissVisualStarted && !playerWasFrozenByRealKiss)
+                    return false;
+
+                return result || (playerAnimationStarted && npcKissVisualStarted);
+            }
+            finally
+            {
+                suppressDialogueFromAutoKissClick = previousSuppress;
+                suppressDialogueAutoKissNpc = previousNpc;
+                suppressedDialogueDuringAutoKissClick = previousSuppressed;
+                LotsOfKissesKissPatchActive = previousKissPatchFlag;
+                autoKissPlayerAnimationStarted = previousPlayerAnimationStarted;
+                suppressLocationOverrideDialogueDuringAutoKissClick = previousSuppressLocationOverride;
+
+                if (!previousKissPatchFlag && Game1.player?.modData != null)
+                    Game1.player.modData.Remove(AutoKissClickActiveModDataKey);
+
+                if (stashedActiveObject != null
+                    && Game1.player != null
+                    && stashedActiveObjectIndex >= 0
+                    && stashedActiveObjectIndex < Game1.player.Items.Count)
+                {
+                    if (Game1.player.Items[stashedActiveObjectIndex] == null)
+                    {
+                        Game1.player.Items[stashedActiveObjectIndex] = stashedActiveObject;
+                        DebugLog("KISS", $"Restored the held item after the automatic kiss with {npc.Name}.");
+                    }
+                    else
+                    {
+                        // A third-party checkAction patch unexpectedly changed the original slot.
+                        // Preserve both items instead of overwriting either one.
+                        Item leftover = Game1.player.addItemToInventory(stashedActiveObject);
+                        if (leftover != null)
+                            Game1.createItemDebris(leftover, Game1.player.getStandingPosition(), Game1.player.FacingDirection);
+
+                        Monitor.Log(
+                            $"[AUTO KISS] The original held-item slot changed during the simulated kiss with {npc.Name}; the held item was returned to the inventory instead.",
+                            LogLevel.Warn
+                        );
+                    }
+                }
+
+
+                // Restore the original pending dialogue, unless checkAction pushed a brand new
+                // one of its own (rare, but don't stomp on it if it did).
+                if (stashedDialogue != null && npc.CurrentDialogue != null && npc.CurrentDialogue.Count == 0)
+                {
+                    // stashedDialogue[0] was the original top of the stack (read first), so push
+                    // it last to keep it back on top.
+                    for (int i = stashedDialogue.Count - 1; i >= 0; i--)
+                        npc.CurrentDialogue.Push(stashedDialogue[i]);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Starts only the two kiss visuals when the normal NPC.checkAction path didn't reach a
+        /// kiss. This keeps the desktop/other-mod interaction path as the first choice while making
+        /// the animation independent from another mod supplying its own checkAction prefix.
+        /// </summary>
+        private bool TryStartDirectRomanticKissVisuals(NPC npc)
+        {
+            if (npc?.Sprite == null || Game1.player == null
+                || npc.currentLocation != Game1.player.currentLocation
+                || Game1.activeClickableMenu != null || Game1.dialogueUp)
+                return false;
+
+            CharacterData data = npc.GetData();
+            if (data == null)
+                return false;
+
+            bool previousKissPatchFlag = LotsOfKissesKissPatchActive;
+            bool previousPlayerAnimationStarted = autoKissPlayerAnimationStarted;
+
+            try
+            {
+                LotsOfKissesKissPatchActive = true;
+                autoKissPlayerAnimationStarted = false;
+
+                Game1.player.PerformKiss(Game1.player.FacingDirection);
+                if (!autoKissPlayerAnimationStarted)
+                    return false;
+
+                bool shouldFlipNpc =
+                    (data.KissSpriteFacingRight && npc.FacingDirection == 3)
+                    || (!data.KissSpriteFacingRight && npc.FacingDirection == 1);
+
+                int visualDuration = Math.Max(1, activeKissVisualDelayMs);
+                npc.movementPause = Math.Max(npc.movementPause, visualDuration);
+                npc.Sprite.ClearAnimation();
+                npc.Sprite.AddFrame(new FarmerSprite.AnimationFrame(
+                    data.KissSpriteIndex,
+                    visualDuration,
+                    false,
+                    shouldFlipNpc,
+                    npc.haltMe,
+                    true
+                ));
+                npc.Sprite.UpdateSourceRect();
+                directAutoKissVisualNpc = npc;
+
+                Monitor.Log(
+                    $"[AUTO KISS] Normal checkAction didn't start a kiss; used the direct visual fallback for {npc.Name}.",
+                    LogLevel.Trace
+                );
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Monitor.Log($"[AUTO KISS] Direct visual fallback failed for {npc.Name}: {ex}", LogLevel.Error);
+                return false;
+            }
+            finally
+            {
+                LotsOfKissesKissPatchActive = previousKissPatchFlag;
+                autoKissPlayerAnimationStarted = previousPlayerAnimationStarted;
+            }
+        }
+
+        /// <summary>
+        /// Clears only a kiss pose created by <see cref="TryStartDirectRomanticKissVisuals"/>.
+        /// The saved pre-kiss snapshot remains untouched, so the NPC's original position/action
+        /// can still be restored by the existing deferred path when the player moves away.
+        /// </summary>
+        private bool ClearDirectRomanticKissVisual(NPC npc, bool holdForNextCycle)
+        {
+            if (npc == null || directAutoKissVisualNpc != npc)
+                return false;
+
+            directAutoKissVisualNpc = null;
+
+            if (npc.Sprite == null || !IsNpcShowingKissVisual(npc))
+                return false;
+
+            npc.Sprite.StopAnimation();
+            npc.Sprite.ClearAnimation();
+            npc.Sprite.CurrentAnimation = null;
+            npc.flip = false;
+            npc.Sprite.CurrentFrame = GetNpcIdleFrameForDirection(npc.FacingDirection);
+            npc.Sprite.UpdateSourceRect();
+
+            // The gap is 25 ticks (roughly 417 ms). Keep movement paused just long enough for
+            // the next cycle without touching the controller or queued schedule paths.
+            if (holdForNextCycle)
+                npc.movementPause = Math.Max(npc.movementPause, 450);
+
+            return true;
+        }
+        // =========================================================================================================================================
+        // CONTINUOUS KISS LOGIC — START, MAINTENANCE AND END (including bump kiss, which can escalate outside the farm)
+        // =========================================================================================================================================
+
+        private int RollContinuousKissTier()
+        {
+            // Tier 1: 60% | Tier 2: 30% | Tier 3: 10%
+            double roll = random.NextDouble();
+
+            if (roll < 0.10) return 3;
+            if (roll < 0.40) return 2;
+            return 1;
+        }
+
+        private sealed class NpcPreKissSpecialActionSnapshot
+        {
+            public int DebugId;
+            public NPC Npc;
+            public GameLocation Location;
+            public Vector2 Position;
+            public bool RestorePositionWhenPlayerLeaves;
+            public bool PositionOwnedByOutfitReactions;
+            public bool WasMovingOrControlled;
+            public bool HadSpecialAnimation;
+            public int FacingDirection;
+            public int CurrentFrame;
+            public bool Flip;
+            public int MovementPause;
+            public int AddedSpeed;
+            public List<FarmerSprite.AnimationFrame> CurrentAnimation;
+            public string LastDebugWaitReason;
+        }
+
+        private NpcPreKissSpecialActionSnapshot preKissSpecialActionSnapshot = null;
+        private int preKissSpecialActionRestoreDelayTicks = 0;
+        private const float NpcSpecialActionRestoreDistance = 300f;
+
+        /// <summary>Ticks left before this specific NPC can trigger a new bump-kiss cooldown line. Per-NPC, so kissing one partner doesn't block trying with another right after.</summary>
+        private int GetApproachKissBlockTimer(NPC npc)
+        {
+            if (npc == null)
+                return 0;
+
+            return approachKissBlockTimerByNpc.TryGetValue(npc.Name, out int value) ? value : 0;
+        }
+
+        private void SetApproachKissBlockTimer(NPC npc, int value)
+        {
+            if (npc == null)
+                return;
+
+            approachKissBlockTimerByNpc[npc.Name] = value;
+        }
+
+        private void TickApproachKissBlockTimers()
+        {
+            if (approachKissBlockTimerByNpc.Count == 0)
+                return;
+
+            var keys = new System.Collections.Generic.List<string>(approachKissBlockTimerByNpc.Keys);
+            foreach (string key in keys)
+            {
+                if (approachKissBlockTimerByNpc[key] > 0)
+                    approachKissBlockTimerByNpc[key]--;
+            }
+        }
+
+        private int GetBumpKissCooldown(NPC npc)
+        {
+            if (npc == null)
+                return 0;
+
+            return bumpKissCooldownByNpc.TryGetValue(npc.Name, out int value) ? value : 0;
+        }
+
+        private void SetBumpKissCooldown(NPC npc, int value)
+        {
+            if (npc != null)
+                bumpKissCooldownByNpc[npc.Name] = value;
+        }
+
+        private void TickBumpKissCooldowns()
+        {
+            if (bumpKissCooldownByNpc.Count == 0)
+                return;
+
+            var keys = new List<string>(bumpKissCooldownByNpc.Keys);
+            foreach (string key in keys)
+            {
+                int remaining = bumpKissCooldownByNpc[key];
+                if (remaining > 1)
+                    bumpKissCooldownByNpc[key] = remaining - 1;
+                else
+                    bumpKissCooldownByNpc.Remove(key);
+            }
+        }
+
+        private bool WasBumpKissTouchingNpc(NPC npc)
+        {
+            return npc != null
+                && bumpKissTouchingByNpc.TryGetValue(npc.Name, out bool touching)
+                && touching;
+        }
+
+        private void DebugBumpKissRejectionOnce(NPC npc, string reason)
+        {
+            if (npc == null || string.IsNullOrEmpty(reason))
+                return;
+
+            if (bumpKissLastDebugRejectionByNpc.TryGetValue(npc.Name, out string previous) && previous == reason)
+                return;
+
+            bumpKissLastDebugRejectionByNpc[npc.Name] = reason;
+            DebugLog("BUMP", $"Bump kiss rejected for {npc.Name}: {reason}.");
+        }
+
+        private void RefreshBumpKissTouchStates()
+        {
+            if (Game1.player == null || Game1.currentLocation == null)
+                return;
+
+            var trackedNames = new List<string>(bumpKissTouchingByNpc.Keys);
+            foreach (string name in trackedNames)
+                bumpKissTouchingByNpc[name] = false;
+
+            // Track contact only for the closest romantic partner. When several partners
+            // stand together (especially Stardew Squad followers), marking every nearby NPC
+            // as already touched prevents the next partner from receiving a bump kiss until
+            // the player leaves the whole group. Changing the closest partner now creates a
+            // fresh touch immediately, while the per-NPC cooldown still prevents repeats on
+            // the partner who was just kissed.
+            NPC nearestPartner = GetNearestRomanticPartnerInCurrentLocation();
+            if (nearestPartner == null)
+                return;
+
+            bool horizontallyAligned = Game1.player.TilePoint.Y == nearestPartner.TilePoint.Y;
+            bumpKissTouchingByNpc[nearestPartner.Name] =
+                DistanceToPlayer(nearestPartner) <= 64f && horizontallyAligned;
+        }
+
+        private bool TryTriggerRomanticContinuousKiss(NPC npc, bool ignoreApproachBlock = false)
+        {
+            return TryTriggerVanillaRomanticKiss(npc, playSound: true, ignoreApproachBlock: ignoreApproachBlock);
+        }
+
+        private bool TryTriggerRomanticBumpKiss(NPC npc)
+        {
+            return TryTriggerVanillaRomanticKiss(npc, playSound: false);
+        }
+
+        // Also triggers the vanilla kiss for dating partners and extra polyamory mod spouses.
+        // First tries the normal checkAction, since polyamory mods may unlock the kiss via their own patch.
+        // The legacy fallback that temporarily swaps Game1.player.spouse is OFF by default,
+        // because some polyamory mods react to the Married/spouse state and may try to load their own maps.
+        private bool TryTriggerVanillaRomanticKiss(NPC npc, bool playSound, bool ignoreApproachBlock = false)
+        {
+            lastAutoKissClickWasBlockedDialogue = false;
+
+            if (npc == null || Game1.player == null || npc.currentLocation != Game1.player.currentLocation)
+            {
+                DebugLog("KISS", $"Romantic kiss rejected: NPC/player unavailable or location mismatch (npc={npc?.Name ?? "null"}).");
+                return false;
+            }
+
+            if (!IsSupportedRomanticPartner(npc.Name))
+            {
+                DebugLog("KISS", $"Romantic kiss rejected: {npc.Name} is not an eligible romantic partner.");
+                return false;
+            }
+
+            if (ShouldBlockKissDuringStardewSquadTask(npc))
+                return false;
+
+            if (ShouldBlockKissForSpecialAnimation(npc))
+                return false;
+
+            // A queued NPC dialogue is temporarily preserved inside TryCheckActionForAutoKissWithoutDialogue.
+            // Only an actually open dialogue/menu should stop the automatic kiss before that point.
+            if (IsAutoKissBlockedByOpenDialogueOrMenu())
+            {
+                DebugLog("KISS", $"Romantic kiss rejected for {npc.Name}: dialogue or menu is open.");
+                return false;
+            }
+
+            if (!ignoreApproachBlock && GetApproachKissBlockTimer(npc) > 0)
+            {
+                DebugLog("KISS", $"Romantic kiss rejected for {npc.Name}: approach block timer={GetApproachKissBlockTimer(npc)}.");
+                return false;
+            }
+
+            if (Game1.activeClickableMenu != null)
+                return false;
+
+            float distance = DistanceToPlayer(npc);
+            if (distance > 72f)
+            {
+                DebugLog("KISS", $"Romantic kiss rejected for {npc.Name}: distance={distance:0}/72.");
+                return false;
+            }
+
+            CaptureNpcPreKissSpecialAction(npc);
+
+            FaceEachOther(npc);
+
+            bool triggered = TryCheckActionForAutoKissWithoutDialogue(npc);
+            string animationPath = triggered ? "vanilla checkAction" : "none";
+
+            if (!triggered && !lastAutoKissClickWasBlockedDialogue)
+            {
+                triggered = TryStartDirectRomanticKissVisuals(npc);
+                if (triggered)
+                    animationPath = "direct visual fallback";
+            }
+
+            if (triggered)
+            {
+                BeginStardewSquadKissHold(npc, activeKissVisualDelayMs);
+
+                if (playSound)
+                    Game1.playSound("dwop");
+            }
+
+            DebugLog("KISS", $"Romantic kiss result for {npc.Name}: triggered={triggered}, path={animationPath}, blockedDialogue={lastAutoKissClickWasBlockedDialogue}, playSound={playSound}.");
+
+            return triggered;
+        }
+
+        // Tries to trigger the game's built-in continuous kiss reaction (fires when the player kisses while already very close to the NPC) to reuse the game's animation and visual effects. This reaction is temperamental and may not fire every time, but adds significant immersion when it does.
+        private bool TryTriggerVanillaContinuousKiss(NPC npc)
+        {
+            if (npc == null || npc.currentLocation != Game1.player.currentLocation)
+                return false;
+
+            if (ShouldBlockKissForSpecialAnimation(npc))
+                return false;
+
+            if (GetApproachKissBlockTimer(npc) > 0)
+                return false;
+
+            if (Game1.activeClickableMenu != null)
+                return false;
+
+            float distance = DistanceToPlayer(npc);
+            if (distance > 72f)
+                return false;
+
+            FaceEachOther(npc);
+
+            bool triggered = TryCheckActionForAutoKissWithoutDialogue(npc);
+
+            if (!triggered && !lastAutoKissClickWasBlockedDialogue)
+                triggered = TryStartDirectRomanticKissVisuals(npc);
+
+            if (triggered)
+            {
+                BeginStardewSquadKissHold(npc, activeKissVisualDelayMs);
+                Game1.playSound("dwop");
+            }
+
+            return triggered;
+        }
+
+        // Releases the NPC from the continuous kiss state (animation, controller, etc.) after the sequence ends. Staged with delays to prevent teleports or schedule interruptions before the NPC is fully freed.
+        private void ReleaseNpcAfterMultiKiss(NPC partner)
+        {
+            if (partner == null)
+                return;
+
+            int delayedActionToken = delayedActionContextToken;
+            DebugLog("SCHEDULE", () => $"Beginning staged post-kiss release with token {delayedActionToken}: {DescribeNpcDebugState(partner)}.");
+
+            WakeNpcAfterMultiKiss(partner);
+            DebugLog("SCHEDULE", () => $"Synchronous visual/movement release completed: {DescribeNpcDebugState(partner)}.");
+
+            DelayedAction.functionAfterDelay(() =>
+            {
+                if (!IsCurrentDelayedAction(delayedActionToken) || partner == null || partner.currentLocation == null)
+                {
+                    DebugLog("DELAYED", $"Skipped 80 ms post-kiss callback for stale token {delayedActionToken} or unavailable partner.");
+                    return;
+                }
+
+                // If a snapshot is still saved for this NPC, don't overwrite the idle frame —
+                // UpdateDeferredNpcSpecialActionRestore will restore the animation when the player moves away.
+                if (HasNpcPreKissSpecialAction(partner))
+                {
+                    DebugLog("RESTORE", $"80 ms post-kiss callback left snapshot #{preKissSpecialActionSnapshot?.DebugId} queued for move-away restoration.");
+                    return;
+                }
+
+                // Visual release already happened synchronously. Don't touch the NPC here:
+                // another mod or vanilla may have started a new route/animation meanwhile.
+            }, 80);
+
+            DelayedAction.functionAfterDelay(() =>
+            {
+                if (!IsCurrentDelayedAction(delayedActionToken) || partner == null || partner.currentLocation != Game1.player.currentLocation)
+                {
+                    DebugLog("DELAYED", $"Skipped 220 ms post-kiss state cleanup for stale token {delayedActionToken} or location mismatch.");
+                    return;
+                }
+
+                didReactThisTick = false;
+                kissProximityTimer = 0;
+                continuousKissPendingRestart = false;
+                continuousKissGapTimer = 0;
+                continuousKissActive = false;
+                continuousKissNpc = null;
+                kissPostSequenceActive = false;
+                kissPostSequenceNpc = null;
+                DebugLog("SCHEDULE", () => $"220 ms post-kiss logical state cleanup completed: {DescribeNpcDebugState(partner)}.");
+            }, 220);
+
+            DelayedAction.functionAfterDelay(() =>
+            {
+                if (!IsCurrentDelayedAction(delayedActionToken) || partner == null)
+                {
+                    DebugLog("DELAYED", $"Skipped 420 ms schedule check for stale token {delayedActionToken} or unavailable partner.");
+                    return;
+                }
+
+                RestorePartnerScheduleAfterMultiKiss(partner);
+            }, 420);
+        }
+
+        // Restores the partner NPC's schedule after a continuous kiss to ensure they resume their routine normally. Called with a delay to avoid the game interrupting the schedule mid-sequence.
+        private void RestorePartnerScheduleAfterMultiKiss(NPC partner)
+        {
+            if (partner == null || partner.currentLocation == null)
+                return;
+
+            // A recruited follower's movement and destination belong to The Stardew Squad.
+            // Its own cooldown resumes that state after the kiss; a vanilla schedule check here
+            // could pull the NPC away or make the Squad catch-up warp them back.
+            if (IsStardewSquadRecruited(partner))
+            {
+                DebugLog("SCHEDULE", () => $"Schedule restore skipped because Stardew Squad owns the NPC: {DescribeNpcDebugState(partner)}.");
+                return;
+            }
+
+            // Do NOT clear CurrentDialogue here.
+            // Another mod may have queued dialogue on the NPC.
+
+            // Ask vanilla to re-evaluate the schedule only if nothing resumed naturally.
+            // Never clear an existing controller or queued schedule paths.
+            bool hasActiveAnimation = partner.Sprite?.CurrentAnimation != null;
+            bool hasSpecialStaticFrame = partner.Sprite?.CurrentFrame >= 16;
+            if (partner.controller == null &&
+                !partner.isMoving() &&
+                !hasActiveAnimation &&
+                !hasSpecialStaticFrame)
+            {
+                DebugLog("SCHEDULE", () => $"Nothing resumed naturally; requesting vanilla schedule check: {DescribeNpcDebugState(partner)}.");
+                ForceScheduleCheckNow(partner);
+            }
+            else
+            {
+                string owner = partner.controller != null
+                    ? "controller already active"
+                    : partner.isMoving()
+                        ? "NPC already moving"
+                        : hasActiveAnimation
+                            ? "animation already active"
+                            : "special static frame active";
+                DebugLog("SCHEDULE", () => $"Vanilla schedule check not needed ({owner}): {DescribeNpcDebugState(partner)}.");
+            }
+        }
+
+        private bool IsNpcShowingKissVisual(NPC npc)
+        {
+            if (npc?.Sprite == null)
+                return false;
+
+            CharacterData data = npc.GetData();
+            if (data == null)
+                return false;
+
+            int kissFrame = data.KissSpriteIndex;
+            if (npc.Sprite.CurrentFrame == kissFrame)
+                return true;
+
+            if (npc.Sprite.CurrentAnimation != null)
+            {
+                foreach (FarmerSprite.AnimationFrame frame in npc.Sprite.CurrentAnimation)
+                {
+                    if (frame.frame == kissFrame)
+                        return true;
+                }
+            }
+
+            return false;
+        }
+        // =========================================================================================================================================
+        // NPC position reset after a kiss (prevents stuck animations or unexpected teleports)
+        // =========================================================================================================================================
+        private void UpdatePendingNpcKissReset(NPC partner)
+        {
+            if (!pendingNpcKissResetQueued || pendingNpcKissResetNpc == null)
+                return;
+
+            if (pendingNpcKissResetTimer > 0)
+                return;
+
+            NPC npc = pendingNpcKissResetNpc;
+
+            pendingNpcKissResetQueued = false;
+            pendingNpcKissResetNpc = null;
+            pendingNpcKissResetTimer = 0;
+
+            if (npc.currentLocation != Game1.currentLocation)
+                return;
+
+            npc.controller = null;
+            npc.Halt();
+
+            if (pendingNpcKissResetDirection >= 0)
+                npc.FacingDirection = pendingNpcKissResetDirection;
+
+            if (pendingNpcKissResetFrame >= 0)
+                npc.Sprite.CurrentFrame = pendingNpcKissResetFrame;
+
+            npc.flip = false;
+            npc.Sprite.UpdateSourceRect();
+
+            pendingNpcKissResetDirection = -1;
+            pendingNpcKissResetFrame = -1;
+        }
+        private void UpdatePendingPublicMultiKissShyEmote()
+        {
+            if (!pendingPublicMultiKissShyEmote)
+                return;
+
+            if (pendingPublicMultiKissShyNpc == null)
+            {
+                ClearPendingPublicMultiKissShyEmote(releaseNpc: false);
+                return;
+            }
+
+            if (pendingPublicMultiKissShyNpc.currentLocation != Game1.currentLocation)
+            {
+                ClearPendingPublicMultiKissShyEmote(releaseNpc: true);
+                return;
+            }
+
+            // Lots of Kisses owns this short hold from the interruption dialogue through
+            // the end of the blush. The controller is never touched and resumes naturally.
+            if (pendingPublicMultiKissShyNpc.movementPause < 6)
+                pendingPublicMultiKissShyNpc.movementPause = 6;
+
+            if (Game1.activeClickableMenu != null || Game1.dialogueUp)
+                return;
+
+            if (!pendingPublicMultiKissShyEmoteStarted)
+            {
+                if (pendingPublicMultiKissShyEmoteTimer > 0)
+                {
+                    pendingPublicMultiKissShyEmoteTimer--;
+                    return;
+                }
+
+                pendingPublicMultiKissShyNpc.doEmote(60);
+                pendingPublicMultiKissShyEmoteStarted = true;
+                return;
+            }
+
+            if (pendingPublicMultiKissShyNpc.IsEmoting)
+                return;
+
+            ClearPendingPublicMultiKissShyEmote(releaseNpc: true);
+        }
+
+        private void ClearPendingPublicMultiKissShyEmote(bool releaseNpc)
+        {
+            NPC npc = pendingPublicMultiKissShyNpc;
+            if (npc?.modData != null)
+                npc.modData.Remove(PublicMultiKissInterruptionModDataKey);
+
+            if (releaseNpc && npc != null)
+                npc.movementPause = 0;
+
+            pendingPublicMultiKissShyEmote = false;
+            pendingPublicMultiKissShyNpc = null;
+            pendingPublicMultiKissShyEmoteTimer = 0;
+            pendingPublicMultiKissShyEmoteStarted = false;
+        }
+        // =====================================================================
+        // MAIN SYSTEMS / UPDATE LOOPS
+        // =====================================================================
+        // =====================================================================
+        // SINGLE KISS LOGIC
+        // ====================================================================
+        private void UpdateKissSystem(NPC partner)
+        {
+            if (!kissSequenceActive || pendingKissNpc == null)
+                return;
+
+            // Same reasoning as the other kiss systems: don't let a kiss sequence continue
+            // running while the player is seated.
+            if (Game1.player.IsSitting())
+            {
+                ResetKissState();
+                return;
+            }
+
+            if (partner.currentLocation != Game1.currentLocation || pendingKissNpc != partner)
+            {
+                ResetKissState();
+                return;
+            }
+
+            float distance = DistanceToPlayer(partner);
+
+            if (distance > 120f)
+            {
+                ResetKissState();
+                return;
+            }
+
+            FaceEachOther(partner);
+
+            if (!holdingKissPose)
+            {
+                if (kissDelayTimer <= 0)
+                {
+                    holdingKissPose = true;
+                    kissRepeatTimer = 30;
+                }
+            }
+            else
+            {
+                if (kissRepeatTimer <= 0)
+                {
+                    kissPostSequenceActive = true;
+                    kissPostSequenceNpc = partner;
+                    lastKissPostDistance = distance;
+                    kissPostLineTriggered = false;
+                    kissPostLine = pendingKissCycleLine;
+                    ResetKissState();
+                }
+            }
+        }
+        // =====================================================================
+        // POST-KISS LOGIC (DIALOGUE, ROUTE DEVIATION, ETC.)
+        // ======================================================================
+        private void UpdatePostKissSystem(NPC partner)
+        {
+            if (!kissPostSequenceActive || kissPostSequenceNpc == null)
+                return;
+
+            if (kissPostSequenceNpc != partner)
+            {
+
+                ReleaseNpcAfterMultiKiss(kissPostSequenceNpc);
+                ResetPostKissState();
+                return;
+            }
+
+            if (partner.currentLocation != Game1.currentLocation)
+            {
+
+                ReleaseNpcAfterMultiKiss(partner);
+                ResetPostKissState();
+                return;
+            }
+
+            float distance = DistanceToPlayer(partner);
+
+            if (lastKissPostDistance < 0f)
+                lastKissPostDistance = distance;
+
+            bool playerStartedMovingAway = distance > lastKissPostDistance + 2f;
+
+            if (!kissPostLineTriggered &&
+                !string.IsNullOrEmpty(kissPostLine) &&
+                distance >= 120f &&
+                dialogueCooldown <= 0 &&
+                Game1.activeClickableMenu == null)
+            {
+
+                ShowTextAboveHeadWithPipeSupport(partner, kissPostLine);
+                kissPostLineTriggered = true;
+                dialogueCooldown = 120;
+            }
+            else if (!kissPostLineTriggered &&
+                     !string.IsNullOrEmpty(kissPostLine) &&
+                     playerStartedMovingAway &&
+                     distance >= 72f &&
+                     dialogueCooldown <= 0 &&
+                     Game1.activeClickableMenu == null)
+            {
+
+                ShowTextAboveHeadWithPipeSupport(partner, kissPostLine);
+                kissPostLineTriggered = true;
+                dialogueCooldown = 120;
+            }
+
+            lastKissPostDistance = distance;
+
+            if (distance > 160f)
+            {
+                // Not yet at restore distance — hold here.
+                if (HasNpcPreKissSpecialAction(partner) && distance < NpcSpecialActionRestoreDistance)
+                    return;
+
+                // Past the restore distance — restore first, then release.
+                // Prevents WakeNpcAfterMultiKiss from overwriting the idle frame on top of the restored animation.
+                if (HasNpcPreKissSpecialAction(partner))
+                    TryRestoreNpcPreKissSpecialAction(clearAfterRestore: true);
+
+                ResetPostKissState();
+                ReleaseNpcAfterMultiKiss(partner);
+
+                return;
+            }
+        }
+        // ===================================================================
+        // BEIJO AO ESBARRAR
+        // ===================================================================
+        private void UpdateBumpKissSystem(NPC npc, float distance)
+        {
+            if (npc == null || !Context.IsWorldReady)
+                return;
+
+            // Don't let a bump kiss trigger while the player is seated (e.g. chair/bench) — they
+            // can't meaningfully act or move away normally while sitting.
+            if (Game1.player.IsSitting())
+            {
+                if (distance <= 64f && Game1.player.TilePoint.Y == npc.TilePoint.Y && !WasBumpKissTouchingNpc(npc))
+                    DebugLog("BUMP", $"Touch ignored for {npc.Name}: player is sitting.");
+                return;
+            }
+
+            // Same reasoning as UpdateContinuousKissSystem: a menu being open shouldn't let the
+            // bump kiss trigger or continue behind it.
+            if (Game1.activeClickableMenu != null)
+            {
+                if (distance <= 64f && Game1.player.TilePoint.Y == npc.TilePoint.Y && !WasBumpKissTouchingNpc(npc))
+                    DebugLog("BUMP", $"Touch ignored for {npc.Name}: a menu is open.");
+                return;
+            }
+
+            // Kiss sprites face sideways, so a bump only counts once both characters occupy
+            // the same horizontal tile row. Including alignment in the touch state also lets
+            // the kiss trigger when the player moves from a nearby row into the correct one.
+            bool horizontallyAligned = Game1.player.TilePoint.Y == npc.TilePoint.Y;
+            bool touching = distance <= 64f && horizontallyAligned;
+            bool useOutsideApproachKissHold = !IsHomeOrFarmLocation();
+            bool justStartedTouchingPartner = touching && !WasBumpKissTouchingNpc(npc);
+
+            if (distance <= 64f && !horizontallyAligned)
+                DebugBumpKissRejectionOnce(npc, $"different tile rows (player={Game1.player.TilePoint.Y}, npc={npc.TilePoint.Y}, distance={distance:0})");
+            else if (distance > 80f)
+                bumpKissLastDebugRejectionByNpc.Remove(npc.Name);
+
+            // Inside the farm/house: no long lock or special hold.
+            if (!useOutsideApproachKissHold)
+            {
+                approachKissHoldActive = false;
+                approachKissHoldNpc = null;
+                approachKissTriggered = false;
+                approachKissRearmPending = false;
+            }
+
+            // The bump kiss only loses priority if the multi-kiss sequence is already
+            // actually running.
+            bool multiKissBusy =
+                this.Config.MultiKissEnabled &&
+                (
+                    continuousKissActive ||
+                    continuousKissPendingRestart
+                );
+
+            if (multiKissBusy)
+            {
+                if (justStartedTouchingPartner)
+                    DebugLog("BUMP", $"Touch ignored for {npc.Name}: an NPC Multi-Kiss sequence already owns the interaction.");
+                approachKissHoldActive = false;
+                approachKissHoldNpc = null;
+                approachKissHoldToken++;
+
+                playerWasTouchingPartner = touching;
+                return;
+            }
+
+            Vector2 diff = Game1.player.Position - npc.Position;
+            bool isHorizontal = Math.Abs(diff.X) > Math.Abs(diff.Y);
+
+            if (this.Config.BumpKissEnabled &&
+                justStartedTouchingPartner &&
+                isHorizontal &&
+                Game1.player.isMoving() &&
+                Game1.timeOfDay < 2400 &&
+                GetBumpKissCooldown(npc) <= 0 &&
+                GetApproachKissBlockTimer(npc) <= 0 &&
+                !ShouldBlockKissDuringStardewSquadTask(npc) &&
+                !ShouldBlockKissForSpecialAnimation(npc) &&
+                !kissPostSequenceActive &&
+                !kissSequenceActive &&
+                pendingKissNpc == null &&
+                !continuousKissActive)
+            {
+                bumpKissLastDebugRejectionByNpc.Remove(npc.Name);
+                DebugLog("BUMP", $"Bump kiss candidate accepted: npc={npc.Name}, distance={distance:0}, horizontalMotion={isHorizontal}, aligned={horizontallyAligned}, cooldown={GetBumpKissCooldown(npc)}, approachBlock={GetApproachKissBlockTimer(npc)}.");
+                CaptureNpcPreKissSpecialAction(npc);
+
+                npc.faceDirection(diff.X > 0 ? 1 : 3);
+                Game1.player.faceDirection(diff.X > 0 ? 3 : 1);
+
+                activeKissVisualDelayMs = bumpKissVisualDelayMs;
+
+                Game1.player.Halt();
+                npc.Halt();
+                npc.movementPause = 1500;
+
+                npc.faceDirection(diff.X > 0 ? 1 : 3);
+                Game1.player.faceDirection(diff.X > 0 ? 3 : 1);
+
+                activeKissVisualDelayMs = bumpKissVisualDelayMs;
+
+                bool vanillaTriggered = TryTriggerRomanticBumpKiss(npc);
+                if (!vanillaTriggered)
+                {
+                    DebugLog("BUMP", $"Bump kiss failed for {npc.Name}: neither vanilla nor direct animation path started.");
+                    // No real vanilla kiss happened (ghost kiss caught) — cleanly undo what was
+                    // already applied above (pose capture, halt, pause, player freeze) instead of
+                    // running the rest of this mod's own bump-kiss effects (sound, emote,
+                    // dialogue) over nothing.
+                    TryRestoreNpcPreKissSpecialAction(clearAfterRestore: true);
+                    npc.movementPause = 0;
+                    Game1.player.CanMove = true;
+                    playerWasTouchingPartner = touching;
+                    return;
+                }
+
+                Game1.playSound("dwop");
+                npc.doEmote(20);
+                DebugLog("BUMP", $"Bump kiss started successfully for {npc.Name}; visualDurationMs={activeKissVisualDelayMs}.");
+
+                DelayedAction.functionAfterDelay(() =>
+                {
+                    if (!Context.IsWorldReady)
+                    {
+                        DebugLog("DELAYED", $"Skipped bump visual release for {npc?.Name ?? "null"}: world is no longer ready.");
+                        return;
+                    }
+
+                    ReleasePlayerAfterKissWithoutOverridingCurrentPose();
+
+                    if (npc != null && npc.currentLocation == Game1.player.currentLocation)
+                    {
+                        npc.Halt();
+                        if (!ClearDirectRomanticKissVisual(npc, holdForNextCycle: false))
+                        {
+                            npc.Sprite.StopAnimation();
+                            npc.Sprite.UpdateSourceRect();
+                        }
+                    }
+                    DebugLog("BUMP", $"Bump visual release callback completed for {npc?.Name ?? "null"}.");
+                }, activeKissVisualDelayMs);
+
+                string locName = npc.currentLocation.Name;
+
+                bool suppressBumpKissDialogue =
+                    this.passingGreetingsApi?.ShouldSuppressBumpKissDialogue(npc.Name) == true;
+
+                // O beijo sempre pode acontecer.
+                // Only the approachKiss dialogue is restricted to outdoors.
+                // If Npc Passing Greetings just triggered a balloon, the kiss still fires,
+                // but the bump kiss dialogue is silenced for a few seconds.
+                if (locName != "FarmHouse" && locName != "Farm" && !approachKissTriggered && !suppressBumpKissDialogue)
+                {
+                    string surpriseLine = null;
+
+                    // Capture time at the moment of the kiss for the cooldown check.
+                    int kissTimeOfDay = Game1.timeOfDay;
+                    bool approachDialogueCooledDown = approachKissDialogueLastTimeOfDay < 0
+                        || kissTimeOfDay < approachKissDialogueLastTimeOfDay // new day rollover
+                        || (kissTimeOfDay - approachKissDialogueLastTimeOfDay) >= 100;
+
+                    int delayedActionToken = delayedActionContextToken;
+                    DelayedAction.functionAfterDelay(() =>
+                    {
+                        if (!IsCurrentDelayedAction(delayedActionToken) || npc == null || npc.currentLocation != Game1.player.currentLocation)
+                        {
+                            DebugLog("DELAYED", $"Skipped bump dialogue callback for stale token {delayedActionToken} or location mismatch.");
+                            return;
+                        }
+
+                        if (approachDialogueCooledDown)
+                        {
+                            surpriseLine = GetDialogueLine("approachKiss", npc);
+                            if (!string.IsNullOrEmpty(surpriseLine))
+                            {
+                                ShowTextAboveHeadWithPipeSupport(npc, surpriseLine);
+                                SetApproachKissBlockTimer(npc, 300);
+                                approachKissDialogueLastTimeOfDay = kissTimeOfDay;
+                                DebugLog("BUMP", $"Displayed approach-kiss line for {npc.Name}; dialogue block set to 300 ticks.");
+                            }
+                        }
+                    }, 1200);
+
+                    // only locks approachKiss outside the farm/house
+                    approachKissTriggered = true;
+                    approachKissRearmPending = true;
+                }
+
+                // Give priority to the bump kiss:
+                // Clear the multi-kiss hold and prevent it from re-entering immediately on the same touch.
+                continuousKissTouchHoldTimer = 0;
+                continuousKissWasTouchingPartner = false;
+                continuousKissPendingRestart = false;
+
+                // Only outside the farm/house does the partner pause after the bump kiss
+                if (useOutsideApproachKissHold)
+                {
+                    approachKissTriggered = true;
+                    approachKissRearmPending = true;
+
+                    NPC pauseNpc = npc;
+                    int pauseToken = ++OutsideBumpPause.Token;
+
+                    DelayedAction.functionAfterDelay(() =>
+                    {
+                        if (!Context.IsWorldReady)
+                            return;
+
+                        if (pauseToken != OutsideBumpPause.Token)
+                            return;
+
+                        if (pauseNpc == null)
+                            return;
+
+                        if (Game1.player == null)
+                            return;
+
+                        if (pauseNpc.currentLocation != Game1.player.currentLocation)
+                            return;
+
+                        if (IsHomeOrFarmLocation())
+                            return;
+
+                        if (continuousKissActive || continuousKissPendingRestart)
+                            return;
+
+                        if (DistanceToPlayer(pauseNpc) >= 600f) // Player moved too far away — skip the pause.
+                            return;
+
+                        OutsideBumpPause.IsActive = true;
+                        OutsideBumpPause.Npc = pauseNpc;
+                        OutsideBumpPause.Timer = 360; // 6-second pause
+                        DebugLog("BUMP", () => $"Activated outside bump pause: token={OutsideBumpPause.Token}, timer={OutsideBumpPause.Timer}, {DescribeNpcDebugState(pauseNpc)}.");
+                        pauseNpc.faceGeneralDirection(Game1.player.getStandingPosition(), 0, false, false);
+
+                    }, activeKissVisualDelayMs);
+                }
+                else
+                {
+                    // Indoors / farm — no outdoor pause needed, continue normally.
+                    approachKissHoldActive = false;
+                    approachKissHoldNpc = null;
+                    approachKissTriggered = false;
+                    approachKissRearmPending = false;
+                    approachKissHoldToken++;
+                }
+
+                cooldown = 100; // Brief cooldown before allowing another touch reaction, so the partner doesn't react repeatedly if the player stands still next to them.
+                SetBumpKissCooldown(npc, 100);
+                dialogueCooldown = 350;
+                didReactThisTick = true;
+                playerWasTouchingPartner = true;
+                return;
+            }
+
+            if (justStartedTouchingPartner)
+            {
+                DebugLog("BUMP", () =>
+                    $"Bump kiss touch rejected: npc={npc.Name}, enabled={Config.BumpKissEnabled}, distance={distance:0}, aligned={horizontallyAligned}, " +
+                    $"horizontalMotion={isHorizontal}, playerMoving={Game1.player.isMoving()}, time={Game1.timeOfDay}, cooldown={GetBumpKissCooldown(npc)}, " +
+                    $"approachBlock={GetApproachKissBlockTimer(npc)}, squadBlocked={ShouldBlockKissDuringStardewSquadTask(npc)}, " +
+                    $"postSequence={kissPostSequenceActive}, kissSequence={kissSequenceActive}, pendingNpc={pendingKissNpc?.Name ?? "null"}, continuousActive={continuousKissActive}."
+                );
+            }
+
+            float currentDistance = DistanceToPlayer(npc);
+
+            // Only rearms the approachKiss DIALOGUE outside the farm/house
+            if (!IsHomeOrFarmLocation())
+            {
+                if (approachKissRearmPending && currentDistance >= 1000f) // Player moved far enough away — re-arm the approach kiss.
+                {
+                    approachKissTriggered = false;
+                    approachKissRearmPending = false;
+                }
+            }
+            else
+            {
+                approachKissTriggered = false;
+                approachKissRearmPending = false;
+            }
+
+            playerWasTouchingPartner = touching;
+        }
+    }
+} //👈 FINAL DO NAMESPACE
