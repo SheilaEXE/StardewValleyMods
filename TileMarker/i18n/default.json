@@ -1,0 +1,19 @@
+{
+  "gmcm.option.open-editor-key.name": "Open tile editor",
+  "gmcm.option.overlay-opacity.name": "Overlay opacity",
+  "gmcm.option.left-click-brush.name": "Paint by dragging with left click",
+  "gmcm.option.left-click-brush.tooltip": "Recommended for touchscreens and environments like Cinderbox where touch acts as the left mouse button.",
+  "gmcm.option.merge-compatible-categories.name": "Merge compatible categories",
+  "gmcm.option.merge-compatible-categories.tooltip": "When enabled, categories that compatible mods intentionally place in the same shared group use the union of their marked tiles. Their selections stay stored separately and return to normal when this is disabled.",
+  "picker.title": "Mark tiles for...",
+  "editor.header": "Editing: {{category}}",
+  "editor.tile": "Tile: {{x}}, {{y}}",
+  "editor.controls": "Left click: one tile | Right drag: paint/erase | Shift + right drag: rectangle",
+  "editor.controls.left-brush": "Tap: one tile | Hold and drag: paint/erase | Shift + right drag: rectangle",
+  "hud.saved": "Tile selections saved.",
+  "hud.no-changes": "No tile selections were changed.",
+  "hud.cancelled-warp": "Tile editing was cancelled because you changed location.",
+  "hud.editor-unavailable": "The tile editor can't be opened right now.",
+  "hud.host-only": "Only the host can edit tile selections in multiplayer.",
+  "hud.save-failed": "Tile selections couldn't be saved. Your unsaved selection is still open."
+}

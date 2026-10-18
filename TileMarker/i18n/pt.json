@@ -1,0 +1,19 @@
+{
+  "gmcm.option.open-editor-key.name": "Abrir editor de tiles",
+  "gmcm.option.overlay-opacity.name": "Opacidade da seleção",
+  "gmcm.option.left-click-brush.name": "Pintar arrastando com clique esquerdo",
+  "gmcm.option.left-click-brush.tooltip": "Recomendado para telas de toque e ambientes como o Cinderbox, onde o toque funciona como o botão esquerdo do mouse.",
+  "gmcm.option.merge-compatible-categories.name": "Mesclar categorias compatíveis",
+  "gmcm.option.merge-compatible-categories.tooltip": "Quando ativado, categorias que mods compatíveis colocaram propositalmente no mesmo grupo usam a união dos tiles marcados. As seleções continuam salvas separadamente e voltam ao normal ao desativar.",
+  "picker.title": "Marcar tiles para...",
+  "editor.header": "Editando: {{category}}",
+  "editor.tile": "Tile: {{x}}, {{y}}",
+  "editor.controls": "Clique esquerdo: um tile | Botão direito: pintar/apagar | Shift + botão direito: retângulo",
+  "editor.controls.left-brush": "Toque: um tile | Segure e arraste: pintar/apagar | Shift + botão direito: retângulo",
+  "hud.saved": "Seleção de tiles salva.",
+  "hud.no-changes": "Nenhuma seleção de tile foi alterada.",
+  "hud.cancelled-warp": "A edição foi cancelada porque você mudou de local.",
+  "hud.editor-unavailable": "O editor de tiles não pode ser aberto agora.",
+  "hud.host-only": "Somente o host pode editar seleções de tiles no multiplayer.",
+  "hud.save-failed": "Não foi possível salvar. Sua seleção ainda está aberta para tentar novamente."
+}
