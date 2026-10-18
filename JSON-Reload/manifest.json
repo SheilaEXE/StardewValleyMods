@@ -1,0 +1,24 @@
+{
+  "Name": "Json Reload",
+  "Author": "NatrollEXE",
+  "Version": "1.0.0",
+  "Description": "Reloads changed Content Patcher JSON and i18n files.",
+  "UniqueID": "NatrollEXE.JsonReload",
+  "EntryDll": "JsonReload.dll",
+  "MinimumApiVersion": "4.5.0",
+  "UpdateKeys": [
+    "Nexus:52159"
+  ],
+  "Dependencies": [
+    {
+      "UniqueID": "Pathoschild.ContentPatcher",
+      "MinimumVersion": "2.9.0",
+      "IsRequired": true
+    },
+    {
+      "UniqueID": "spacechase0.GenericModConfigMenu",
+      "MinimumVersion": "1.14.0",
+      "IsRequired": false
+    }
+  ]
+}

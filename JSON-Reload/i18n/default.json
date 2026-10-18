@@ -1,0 +1,13 @@
+{
+  "config.reload-key.name": "Reload changed JSON files",
+  "config.reload-key.tooltip": "Reloads changed i18n and Content Patcher JSON files. Close dialogues and menus before using it.",
+  "config.show-hud.name": "Show in-game messages",
+  "config.show-hud.tooltip": "Shows the reload result in the corner of the screen.",
+  "message.world-not-ready": "Load a save before reloading content packs.",
+  "message.blocked": "Close dialogues and menus, and finish the current event, before reloading.",
+  "message.no-changes": "No changed Content Patcher JSON files were found.",
+  "message.invalid": "Reload cancelled for {{count}} content pack(s): invalid JSON. Check the SMAPI console.",
+  "message.restart-needed": "Some changed files require a restart or their own config menu. Check the SMAPI console.",
+  "message.integration-failed": "The reload command couldn't be accessed. Check the SMAPI console.",
+  "message.success": "Reloaded {{count}} content pack(s): {{packs}}."
+}

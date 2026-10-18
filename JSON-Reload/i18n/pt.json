@@ -1,0 +1,13 @@
+{
+  "config.reload-key.name": "Recarregar arquivos JSON alterados",
+  "config.reload-key.tooltip": "Recarrega traduções e arquivos JSON alterados do Content Patcher. Feche diálogos e menus antes de usar.",
+  "config.show-hud.name": "Mostrar mensagens no jogo",
+  "config.show-hud.tooltip": "Mostra o resultado da recarga no canto da tela.",
+  "message.world-not-ready": "Carregue um save antes de recarregar os content packs.",
+  "message.blocked": "Feche diálogos e menus e termine o evento atual antes de recarregar.",
+  "message.no-changes": "Nenhum JSON alterado do Content Patcher foi encontrado.",
+  "message.invalid": "Recarga cancelada para {{count}} content pack(s): JSON inválido. Veja o console do SMAPI.",
+  "message.restart-needed": "Alguns arquivos alterados exigem reinício ou o menu de configuração próprio. Veja o console do SMAPI.",
+  "message.integration-failed": "Não foi possível acessar o comando de recarga. Veja o console do SMAPI.",
+  "message.success": "{{count}} content pack(s) recarregado(s): {{packs}}."
+}
