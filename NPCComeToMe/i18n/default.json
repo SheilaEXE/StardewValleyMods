@@ -1,0 +1,16 @@
+{
+    "config.open-menu-key.name": "Call NPC key",
+    "config.open-menu-key.tooltip": "Opens a text box for you to type the name of the NPC you want to teleport to you.",
+
+    "config.release-npc-key.name": "Release NPC key",
+    "config.release-npc-key.tooltip": "Aim your cursor at the called NPC and press this key to send them back to their normal routine.",
+
+    "naming-menu.prompt": "Which NPC do you want to call?",
+
+    "error.npc-not-found": "Couldn't find any NPC named \"{{name}}\".",
+    "error.no-npc-under-cursor": "Aim your cursor at a called NPC to release them.",
+
+    "message.npc-arrived": "{{name}} came to you! Aim at them and press the release key when you're done.",
+    "message.npc-released": "{{name}} went back to their routine.",
+    "message.npc-auto-released": "{{name}} was automatically released because you left the area."
+}

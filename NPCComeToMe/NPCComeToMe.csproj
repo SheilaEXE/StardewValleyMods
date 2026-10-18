@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>NPCComeToMe</RootNamespace>
+    <AssemblyName>NPCComeToMe</AssemblyName>
+    <EnableHarmony>false</EnableHarmony>
+    <IgnoreModWarnings>false</IgnoreModWarnings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Referencia automaticamente as DLLs do jogo e do SMAPI, e empacota o mod na pasta Mods ao compilar -->
+    <PackageReference Include="Pathoschild.Stardew.ModBuildConfig" Version="4.3.2" />
+  </ItemGroup>
+
+</Project>
