@@ -1,0 +1,1222 @@
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using StardewModdingAPI;
+using StardewValley;
+using System;
+using System.Collections.Generic;
+using System.Collections;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+
+namespace FashionSenseWardrobeManager;
+
+/// <summary>
+/// Handles silently applying/restoring Fashion Sense outfits on the player
+/// and drawing the farmer sprite inside a given portrait box.
+/// All Fashion Sense interop is done via reflection so we don't need a hard reference.
+/// </summary>
+internal sealed class OutfitPreviewRenderer
+{
+    internal sealed record FashionSenseShoeOption(string Id, string DisplayName, string PackName);
+
+    // State
+
+    private readonly IMonitor _monitor;
+    private readonly CosmeticShoeManager _cosmeticShoeManager;
+
+    private Dictionary<string, string>? _snapshot;
+    private string? _snapshotShoeColor;
+    private readonly Dictionary<string, string> _renamePreviewAliases = new(StringComparer.OrdinalIgnoreCase);
+    private string? _activeOutfitName;
+
+    public bool IsPreviewActive => _activeOutfitName is not null;
+    public string? ActiveOutfitName => _activeOutfitName;
+
+    // Constructor
+
+    public OutfitPreviewRenderer(IMonitor monitor, CosmeticShoeManager cosmeticShoeManager)
+    {
+        _monitor = monitor;
+        _cosmeticShoeManager = cosmeticShoeManager;
+    }
+
+    // Outfit apply / restore
+
+    /// <summary>
+    /// Silently apply an outfit for preview.
+    /// Saves a snapshot of the current FS modData so it can be restored later.
+    /// Returns false if the outfit could not be applied.
+    /// </summary>
+    public bool ApplyOutfitForPreview(string outfitName)
+    {
+        _snapshot = TakeSnapshot();
+
+        if (!SetOutfitSilently(outfitName))
+        {
+            _monitor.Log($"Could not apply the outfit '{outfitName}' for preview.", LogLevel.Warn);
+            _snapshot = null;
+            return false;
+        }
+
+        _activeOutfitName = outfitName;
+        return true;
+    }
+
+    /// <summary>Restore the original outfit and clear preview state.</summary>
+    public void RestoreOriginal()
+    {
+        RestoreSnapshot();
+        _activeOutfitName = null;
+        _snapshot         = null;
+        _snapshotShoeColor = null;
+    }
+
+    /// <summary>
+    /// Commit the current preview as the "real" outfit.
+    /// The preview outfit stays equipped; we just forget the snapshot.
+    /// </summary>
+    public void CommitPreview()
+    {
+        _snapshot         = null;
+        _snapshotShoeColor = null;
+        _activeOutfitName = null;
+    }
+
+    /// <summary>Equip a saved outfit as a real change, without creating preview state.</summary>
+    public bool EquipOutfitImmediately(string outfitName)
+    {
+        try
+        {
+            bool equipped = SetOutfitSilently(outfitName);
+            if (equipped)
+            {
+                _snapshot = null;
+                _activeOutfitName = null;
+            }
+
+            return equipped;
+        }
+        catch (Exception ex)
+        {
+            _monitor.Log($"Error equipping Fashion Sense outfit '{outfitName}': {ex}", LogLevel.Warn);
+            return false;
+        }
+    }
+
+    /// <summary>Return whether a saved outfit can currently be resolved by Fashion Sense.</summary>
+    public bool OutfitExists(string outfitName)
+    {
+        try
+        {
+            object? outfitManager = GetOutfitManager();
+            return outfitManager is not null && DoesOutfitExist(outfitManager, outfitName);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>Rename a saved Fashion Sense outfit.</summary>
+    public bool RenameOutfit(string oldName, string newName)
+    {
+        string from = oldName.Trim();
+        string to = newName.Trim();
+
+        if (string.IsNullOrWhiteSpace(from) || string.IsNullOrWhiteSpace(to))
+            return false;
+
+        if (from.Equals(to, StringComparison.Ordinal))
+            return true;
+
+        try
+        {
+            object? outfitManager = GetOutfitManager();
+
+            if (outfitManager is null)
+                return false;
+
+            if (!DoesOutfitExist(outfitManager, from))
+                return false;
+
+            // Fashion Sense's real manager method is:
+            // RenameOutfit(Farmer who, string originalName, string currentName)
+            // It serializes the outfit list back into player.modData.
+            object? result = InvokeExactCompatibleMethod(
+                outfitManager,
+                "RenameOutfit",
+                Game1.player,
+                from,
+                to
+            );
+
+            bool persisted = result is not null
+                || DoesOutfitExist(outfitManager, to)
+                || SavedOutfitCollectionContains(to);
+
+            if (!persisted)
+            {
+                _monitor.Log($"Fashion Sense did not persist rename from '{from}' to '{to}'.", LogLevel.Warn);
+                return false;
+            }
+
+            // Some Fashion Sense versions serialize the new name immediately, but keep
+            // the old outfit object cached until the menu is reopened. Keep a temporary
+            // alias so previewing the freshly-renamed outfit works right away.
+            string cachedLookupName = from;
+
+            if (_renamePreviewAliases.TryGetValue(from, out string? previousCachedName))
+            {
+                cachedLookupName = previousCachedName;
+                _renamePreviewAliases.Remove(from);
+            }
+
+            _renamePreviewAliases[to] = cachedLookupName;
+
+            MarkSpriteDirty();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _monitor.Log($"Error renaming Fashion Sense outfit '{from}' to '{to}': {ex}", LogLevel.Warn);
+            return false;
+        }
+    }
+
+    /// <summary>Save the farmer's current Fashion Sense outfit under the given name.</summary>
+    public bool SaveCurrentOutfit(string outfitName)
+    {
+        string name = outfitName.Trim();
+
+        if (string.IsNullOrWhiteSpace(name))
+            return false;
+
+        try
+        {
+            object? outfitManager = GetOutfitManager();
+
+            if (outfitManager is null)
+                return false;
+
+            // Fashion Sense's real manager method is:
+            // CreateOutfit(Farmer who, string name)
+            // It creates an Outfit from the player's current FS appearance and serializes it.
+            object? created = InvokeExactCompatibleMethod(
+                outfitManager,
+                "CreateOutfit",
+                Game1.player,
+                name
+            );
+
+            if (created is null && !DoesOutfitExist(outfitManager, name))
+            {
+                _monitor.Log($"Fashion Sense did not persist saved outfit '{name}'.", LogLevel.Warn);
+                return false;
+            }
+
+            MarkSpriteDirty();
+            return DoesOutfitExist(outfitManager, name);
+        }
+        catch (Exception ex)
+        {
+            _monitor.Log($"Error saving current Fashion Sense outfit '{name}': {ex}", LogLevel.Warn);
+            return false;
+        }
+    }
+
+    /// <summary>Replace a saved Fashion Sense outfit with the farmer's current appearance.</summary>
+    public bool OverrideOutfitWithCurrentAppearance(string outfitName)
+    {
+        string name = outfitName.Trim();
+
+        if (string.IsNullOrWhiteSpace(name))
+            return false;
+
+        try
+        {
+            object? outfitManager = GetOutfitManager();
+            if (outfitManager is null || !DoesOutfitExist(outfitManager, name))
+                return false;
+
+            if (!TryInvokeExactCompatibleMethod(
+                    outfitManager,
+                    "OverrideOutfit",
+                    out _,
+                    Game1.player,
+                    name))
+            {
+                _monitor.Log("The installed Fashion Sense version does not expose OverrideOutfit.", LogLevel.Warn);
+                return false;
+            }
+
+            MarkSpriteDirty();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _monitor.Log($"Error updating Fashion Sense outfit '{name}': {ex}", LogLevel.Warn);
+            return false;
+        }
+    }
+
+    /// <summary>Get all Fashion Sense shoe appearances currently registered by content packs.</summary>
+    public List<FashionSenseShoeOption> GetAvailableFashionSenseShoes()
+    {
+        var result = new List<FashionSenseShoeOption>();
+
+        try
+        {
+            Type? fsType = FindType("FashionSense.FashionSense");
+            object? textureManager = fsType is null ? null : GetStaticField(fsType, "textureManager");
+            object? models = textureManager is null ? null : InvokeExactCompatibleMethod(textureManager, "GetIdToAppearanceModels");
+
+            if (models is not IDictionary dictionary)
+                return result;
+
+            foreach (DictionaryEntry entry in dictionary)
+            {
+                object? model = entry.Value;
+                if (model is null || !model.GetType().FullName!.EndsWith(".Shoes.ShoesContentPack", StringComparison.Ordinal))
+                    continue;
+
+                if (GetMemberBool(model, "IsLocked") == true)
+                    continue;
+
+                string id = entry.Key?.ToString() ?? string.Empty;
+                string name = GetMemberString(model, "Name") ?? id;
+                string packName = GetMemberString(model, "PackName") ?? string.Empty;
+                if (!string.IsNullOrWhiteSpace(id))
+                    result.Add(new FashionSenseShoeOption(id, name, packName));
+            }
+        }
+        catch (Exception ex)
+        {
+            _monitor.Log($"Could not list Fashion Sense shoes: {ex.Message}", LogLevel.Warn);
+        }
+
+        return result
+            .GroupBy(option => option.Id, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .OrderBy(option => option.DisplayName, StringComparer.CurrentCultureIgnoreCase)
+            .ThenBy(option => option.PackName, StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
+    }
+
+    public string? GetCurrentFashionSenseShoeId()
+    {
+        return Game1.player.modData.TryGetValue("FashionSense.CustomShoes.Id", out string? id)
+            && !string.IsNullOrWhiteSpace(id) && !id.Equals("None", StringComparison.OrdinalIgnoreCase)
+            ? id
+            : null;
+    }
+
+    /// <summary>Apply a Fashion Sense shoe for preview without changing any saved outfit.</summary>
+    public void PreviewFashionSenseShoe(string? shoeId)
+    {
+        Game1.player.modData["FashionSense.CustomShoes.Id"] = string.IsNullOrWhiteSpace(shoeId) ? "None" : shoeId;
+        MarkSpriteDirty();
+    }
+
+    /// <summary>Persist only the Fashion Sense shoe ID on an existing saved outfit.</summary>
+    public bool SaveFashionSenseShoe(string outfitName, string? shoeId)
+    {
+        try
+        {
+            object? outfitManager = GetOutfitManager();
+            if (outfitManager is null)
+                return false;
+
+            object? outfitsObject = InvokeExactCompatibleMethod(outfitManager, "GetOutfits", Game1.player, false)
+                ?? InvokeExactCompatibleMethod(outfitManager, "GetOutfits", Game1.player);
+            if (outfitsObject is not IList outfits)
+                return false;
+
+            object? target = outfits.Cast<object?>().FirstOrDefault(outfit =>
+                outfit is not null
+                && string.Equals(GetMemberString(outfit, "Name"), outfitName, StringComparison.OrdinalIgnoreCase));
+            if (target is null || !TrySetMember(target, "ShoesId", string.IsNullOrWhiteSpace(shoeId) ? "None" : shoeId))
+                return false;
+
+            if (!TryInvokeExactCompatibleMethod(outfitManager, "SerializeOutfits", out _, Game1.player, outfitsObject))
+                return false;
+
+            MarkSpriteDirty();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _monitor.Log($"Error saving Fashion Sense shoes for outfit '{outfitName}': {ex}", LogLevel.Warn);
+            return false;
+        }
+    }
+
+    /// <summary>Delete a saved Fashion Sense outfit.</summary>
+    public bool DeleteOutfit(string outfitName)
+    {
+        string name = outfitName.Trim();
+
+        if (string.IsNullOrWhiteSpace(name))
+            return false;
+
+        try
+        {
+            object? outfitManager = GetOutfitManager();
+
+            if (outfitManager is null)
+                return false;
+
+            if (!DoesOutfitExist(outfitManager, name))
+                return false;
+
+            // Fashion Sense's real manager method is:
+            // DeleteOutfit(Farmer who, string name)
+            // It removes the outfit and serializes the list back into player.modData.
+            InvokeExactCompatibleMethod(
+                outfitManager,
+                "DeleteOutfit",
+                Game1.player,
+                name
+            );
+
+            MarkSpriteDirty();
+            return !DoesOutfitExist(outfitManager, name);
+        }
+        catch (Exception ex)
+        {
+            _monitor.Log($"Error deleting Fashion Sense outfit '{name}': {ex}", LogLevel.Warn);
+            return false;
+        }
+    }
+
+    // Drawing
+
+    /// <summary>Scale multiplier applied on top of the normal 4× UI scale.</summary>
+    private const float DrawScale = 1.5f;
+
+    /// <summary>
+    /// Offscreen canvas size (un-scaled pixels).
+    /// Large enough for wings, umbrellas and other tall/wide accessories.
+    /// </summary>
+    private const int NativeW = 240;
+    private const int NativeH = 300;
+
+    // Cached render target — recreated if the device is lost
+    private RenderTarget2D? _renderTarget;
+    private Texture2D? _fashionSenseShoesIcon;
+
+    /// <summary>Start a reversible preview transaction without reapplying the saved outfit.</summary>
+    public void BeginCurrentAppearancePreview(string outfitName)
+    {
+        if (IsPreviewActive)
+            return;
+
+        _snapshot = TakeSnapshot();
+        _activeOutfitName = outfitName;
+    }
+
+    public Texture2D? GetFashionSenseShoesIcon()
+    {
+        if (_fashionSenseShoesIcon is not null && !_fashionSenseShoesIcon.IsDisposed)
+            return _fashionSenseShoesIcon;
+
+        try
+        {
+            Type? fsType = FindType("FashionSense.FashionSense");
+            object? assetManager = fsType is null ? null : GetStaticField(fsType, "assetManager");
+            if (assetManager is null)
+                return null;
+
+            BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+            _fashionSenseShoesIcon = assetManager.GetType().GetField("shoesButtonTexture", flags)?.GetValue(assetManager) as Texture2D
+                ?? assetManager.GetType().GetProperty("shoesButtonTexture", flags)?.GetValue(assetManager) as Texture2D;
+        }
+        catch
+        {
+            _fashionSenseShoesIcon = null;
+        }
+
+        return _fashionSenseShoesIcon;
+    }
+
+    /// <summary>
+    /// Draw the quick Ctrl+Click preview using the original compact positioning.
+    /// This is intentionally separate from the expanded-menu renderer, so changing
+    /// the quick preview size does not affect the large expanded preview panel.
+    /// </summary>
+    public void DrawFarmerQuickPreview(SpriteBatch b, Rectangle portraitFrameBounds, int facingDirection)
+    {
+        Farmer who = Game1.player;
+
+        int savedFacing = who.FacingDirection;
+        int savedFrame  = who.FarmerSprite.currentFrame;
+
+        try
+        {
+            who.faceDirection(facingDirection);
+            NormalizePreviewPose(who);
+
+            Rectangle sourceRect = who.FarmerSprite.SourceRect;
+            Vector2 position = GetQuickPreviewPosition(portraitFrameBounds, sourceRect);
+
+            FarmerRenderer.isDrawingForUI = true;
+
+            try
+            {
+                who.FarmerRenderer.draw(
+                    b,
+                    who.FarmerSprite.CurrentAnimationFrame,
+                    who.FarmerSprite.CurrentFrame,
+                    who.FarmerSprite.SourceRect,
+                    position,
+                    Vector2.Zero,
+                    1f,
+                    Color.White,
+                    0f,
+                    1f,
+                    who
+                );
+            }
+            finally
+            {
+                FarmerRenderer.isDrawingForUI = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            _monitor.Log($"Error drawing quick farmer preview: {ex}", LogLevel.Trace);
+        }
+        finally
+        {
+            who.faceDirection(savedFacing);
+            who.FarmerSprite.setCurrentSingleFrame(savedFrame);
+        }
+    }
+
+    private static Vector2 GetQuickPreviewPosition(Rectangle portraitFrameBounds, Rectangle sourceRect)
+    {
+        const float uiScale = 4f;
+        const float drawScale = 1f;
+        const float offsetX = 0f;
+        const float offsetY = -8f;   // small downward nudge so the sprite doesn't float above the grass
+        const float bottomRoom = 18f;
+
+        Rectangle bounds = new(
+            portraitFrameBounds.X + 8,
+            portraitFrameBounds.Y + 8,
+            portraitFrameBounds.Width - 16,
+            portraitFrameBounds.Height - 16
+        );
+
+        float realDrawWidth  = sourceRect.Width  * uiScale * drawScale;
+        float realDrawHeight = sourceRect.Height * uiScale * drawScale;
+
+        return new Vector2(
+            bounds.Center.X - realDrawWidth / 2f + offsetX,
+            bounds.Bottom - realDrawHeight - bottomRoom + offsetY
+        );
+    }
+
+    /// <summary>
+    /// Draw the farmer sprite centred on <paramref name="portraitBounds"/>.
+    /// Large accessories (wings, umbrellas…) are intentionally allowed to overflow
+    /// the portrait frame so they are never clipped.
+    /// </summary>
+    public void DrawFarmer(SpriteBatch b, Rectangle portraitBounds, int facingDirection, float yOffset = 0f)
+    {
+        Farmer who = Game1.player;
+
+        int savedFacing = who.FacingDirection;
+        int savedFrame  = who.FarmerSprite.currentFrame;
+
+        try
+        {
+            who.faceDirection(facingDirection);
+            NormalizePreviewPose(who);
+
+            // Step 1: ensure our render target exists
+            GraphicsDevice gd = Game1.graphics.GraphicsDevice;
+
+            if (_renderTarget == null
+                || _renderTarget.IsDisposed
+                || _renderTarget.Width  != NativeW
+                || _renderTarget.Height != NativeH)
+            {
+                _renderTarget?.Dispose();
+                _renderTarget = new RenderTarget2D(gd, NativeW, NativeH,
+                    false, SurfaceFormat.Color, DepthFormat.None);
+            }
+
+            // Step 2: render farmer into the large offscreen canvas
+            RenderTarget2D? prevTarget = gd.GetRenderTargets().FirstOrDefault().RenderTarget as RenderTarget2D;
+
+            gd.SetRenderTarget(_renderTarget);
+            gd.Clear(Color.Transparent);
+
+            using (var innerBatch = new SpriteBatch(gd))
+            {
+                innerBatch.Begin(SpriteSortMode.FrontToBack, BlendState.AlphaBlend);
+
+                FarmerRenderer.isDrawingForUI = true;
+
+                try
+                {
+                    // Body sits at the bottom-centre of the canvas.
+                    // Accessories extend upward into the generous empty space above.
+                    float bodyW = who.FarmerSprite.SourceRect.Width  * 4f;
+                    float bodyH = who.FarmerSprite.SourceRect.Height * 4f;
+
+                    Vector2 pos = new(
+                        NativeW / 2f - bodyW / 2f,
+                        NativeH      - bodyH - 12f
+                    );
+
+                    who.FarmerRenderer.draw(
+                        innerBatch,
+                        who.FarmerSprite.CurrentAnimationFrame,
+                        who.FarmerSprite.CurrentFrame,
+                        who.FarmerSprite.SourceRect,
+                        pos,
+                        Vector2.Zero,
+                        1f,
+                        Color.White,
+                        0f,
+                        1f,
+                        who
+                    );
+                }
+                finally
+                {
+                    FarmerRenderer.isDrawingForUI = false;
+                }
+
+                innerBatch.End();
+            }
+
+            // Step 3: restore the previous render target
+            gd.SetRenderTarget(prevTarget);
+
+            // Step 4: blit scaled canvas, centred on the portrait box
+            // The dest rect is intentionally bigger than the portrait box frame
+            // so tall/wide accessories can overflow it naturally.
+            float destW = NativeW * DrawScale;
+            float destH = NativeH * DrawScale;
+
+            Rectangle dest = new(
+                (int)(portraitBounds.Center.X - destW / 2f),
+                (int)(portraitBounds.Bottom   - destH + yOffset),
+                (int)destW,
+                (int)destH
+            );
+
+            b.Draw(_renderTarget, dest, Color.White);
+        }
+        catch (Exception ex)
+        {
+            _monitor.Log($"Error drawing farmer preview: {ex}", LogLevel.Trace);
+        }
+        finally
+        {
+            who.faceDirection(savedFacing);
+            who.FarmerSprite.setCurrentSingleFrame(savedFrame);
+        }
+    }
+
+    // Private helpers – rendering
+
+    private static void NormalizePreviewPose(Farmer who)
+    {
+        who.completelyStopAnimatingOrDoingAction();
+        who.FarmerSprite.StopAnimation();
+        who.faceDirection(who.FacingDirection);
+    }
+
+    // Private helpers – Fashion Sense reflection
+
+    private static object? GetOutfitManager()
+    {
+        Type? fsType = FindType("FashionSense.FashionSense");
+        return fsType is null ? null : GetStaticField(fsType, "outfitManager");
+    }
+
+    private static bool DoesOutfitExist(object outfitManager, string outfitName)
+    {
+        object? result = InvokeExactCompatibleMethod(
+            outfitManager,
+            "DoesOutfitExist",
+            Game1.player,
+            outfitName,
+            false
+        );
+
+        if (result is bool existsWithPresetArg)
+            return existsWithPresetArg;
+
+        result = InvokeExactCompatibleMethod(
+            outfitManager,
+            "DoesOutfitExist",
+            Game1.player,
+            outfitName
+        );
+
+        if (result is bool exists)
+            return exists;
+
+        return GetOutfit(outfitManager, outfitName) is not null;
+    }
+
+    private static object? GetOutfit(object outfitManager, string outfitName)
+    {
+        return InvokeExactCompatibleMethod(
+            outfitManager,
+            "GetOutfit",
+            Game1.player,
+            outfitName,
+            false
+        ) ?? InvokeExactCompatibleMethod(
+            outfitManager,
+            "GetOutfit",
+            Game1.player,
+            outfitName
+        );
+    }
+
+    private bool SetOutfitSilently(string outfitName)
+    {
+        object? outfitManager = GetOutfitManager();
+
+        if (outfitManager is null)
+            return false;
+
+        object? outfit = GetOutfit(outfitManager, outfitName);
+
+        if (outfit is null
+            && _renamePreviewAliases.TryGetValue(outfitName, out string? cachedName))
+        {
+            outfit = GetOutfit(outfitManager, cachedName);
+        }
+
+        if (outfit is null)
+            return false;
+
+        InvokeExactCompatibleMethod(outfitManager, "SetOutfit", Game1.player, outfit);
+        _cosmeticShoeManager.ApplyForOutfit(outfitName);
+        MarkSpriteDirty();
+
+        return true;
+    }
+
+    private Dictionary<string, string> TakeSnapshot()
+    {
+        var snapshot = new Dictionary<string, string>();
+        _snapshotShoeColor = Game1.player.shoes.Value;
+
+        foreach (string key in Game1.player.modData.Keys)
+        {
+            // Only snapshot the currently equipped Fashion Sense appearance.
+            // Do NOT snapshot the saved outfit database; otherwise preview restore
+            // can undo real changes like rename/delete/save made while the expanded
+            // window is open.
+            if (ShouldSnapshotFashionSenseKey(key))
+                snapshot[key] = Game1.player.modData[key];
+        }
+
+        return snapshot;
+    }
+
+    private void RestoreSnapshot()
+    {
+        if (_snapshot is null)
+            return;
+
+        var toRemove = new List<string>();
+
+        foreach (string key in Game1.player.modData.Keys)
+        {
+            // Remove only live appearance keys affected by previewing.
+            // Never remove saved outfit storage keys, or rename/delete operations
+            // will appear to work and then come back after reopening the menu.
+            if (ShouldSnapshotFashionSenseKey(key))
+                toRemove.Add(key);
+        }
+
+        foreach (string key in toRemove)
+            Game1.player.modData.Remove(key);
+
+        foreach (var (key, value) in _snapshot)
+            Game1.player.modData[key] = value;
+
+        if (_snapshotShoeColor is not null)
+            Game1.player.changeShoeColor(_snapshotShoeColor);
+
+        MarkSpriteDirty();
+    }
+
+    private void MarkSpriteDirty()
+    {
+        try
+        {
+            Type? fsType = FindType("FashionSense.FashionSense");
+
+            MethodInfo? method = fsType?.GetMethod(
+                "SetSpriteDirty",
+                BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic
+            );
+
+            if (method is null)
+                return;
+
+            ParameterInfo[] parameters = method.GetParameters();
+
+            if (parameters.Length == 2)
+                method.Invoke(null, new object?[] { Game1.player, false });
+            else if (parameters.Length == 1)
+                method.Invoke(null, new object?[] { Game1.player });
+        }
+        catch { /* best-effort */ }
+    }
+
+    private static bool IsFsKey(string key)
+        => key.StartsWith("FashionSense.", StringComparison.OrdinalIgnoreCase);
+
+    private static bool ShouldSnapshotFashionSenseKey(string key)
+    {
+        if (!IsFsKey(key))
+            return false;
+
+        // Saved outfits live here. This key must not be restored from a preview
+        // snapshot because the expanded menu can rename, delete, and create outfits
+        // while a preview is active.
+        if (key.Equals("FashionSense.Outfit.Collection", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        // Mannequin outfit data is also persisted outfit data, not the player's
+        // temporary preview appearance.
+        if (key.Equals("FashionSense.Outfit.Mannequin.Data", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        return true;
+    }
+
+    private static bool SavedOutfitCollectionContains(string outfitName)
+    {
+        if (!Game1.player.modData.TryGetValue("FashionSense.Outfit.Collection", out string raw)
+            || string.IsNullOrWhiteSpace(raw))
+        {
+            return false;
+        }
+
+        return raw.IndexOf(outfitName, StringComparison.OrdinalIgnoreCase) >= 0;
+    }
+
+    private static Type? FindType(string fullName)
+    {
+        foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+        {
+            Type? t = assembly.GetType(fullName);
+
+            if (t is not null)
+                return t;
+        }
+
+        return null;
+    }
+
+    private static object? GetStaticField(Type type, string name)
+        => type.GetField(name, BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)
+               ?.GetValue(null);
+
+    private static string? GetMemberString(object target, string name)
+    {
+        BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+        return target.GetType().GetProperty(name, flags)?.GetValue(target)?.ToString()
+            ?? target.GetType().GetField(name, flags)?.GetValue(target)?.ToString();
+    }
+
+    /// <summary>
+    /// Exports the appearance currently being rendered by Fashion Sense. This deliberately uses
+    /// the active preview transaction, so a saved outfit can be exported before it is equipped.
+    /// </summary>
+    public bool TryExportSpriteFrames(
+        IEnumerable<int> facingDirections,
+        IEnumerable<int> scales,
+        string exportDirectory,
+        string fileNamePrefix,
+        out int exportedCount,
+        out string? error)
+    {
+        exportedCount = 0;
+        error = null;
+
+        try
+        {
+            Directory.CreateDirectory(exportDirectory);
+
+            foreach (int facing in facingDirections.Distinct())
+            {
+                using Texture2D nativeFrame = RenderNativeSpriteFrame(facing);
+
+                foreach (int scale in scales.Distinct().Where(value => value is 1 or 2 or 4 or 6))
+                {
+                    using Texture2D output = CreateNearestNeighborScale(nativeFrame, scale);
+                    string path = Path.Combine(exportDirectory,
+                        $"{fileNamePrefix}_{GetFacingFileName(facing)}_{scale}x.png");
+
+                    using FileStream stream = File.Create(path);
+                    output.SaveAsPng(stream, output.Width, output.Height);
+                    exportedCount++;
+                }
+            }
+
+            return exportedCount > 0;
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+            _monitor.Log($"Could not export Fashion Sense sprite frames: {ex}", LogLevel.Warn);
+            return false;
+        }
+    }
+
+    private static string GetFacingFileName(int facingDirection) => facingDirection switch
+    {
+        0 => "back",
+        1 => "right",
+        2 => "front",
+        3 => "left",
+        _ => "unknown"
+    };
+
+    /// <summary>Renders one idle frame at Stardew's original 16 x 32 sprite resolution.</summary>
+    private static Texture2D RenderNativeSpriteFrame(int facingDirection)
+    {
+        const int spriteWidth = 16;
+        const int spriteHeight = 32;
+        const int gamePixelScale = 4;
+        const int previewWidth = 240;
+        const int previewHeight = 300;
+        const int previewSpriteWidth = spriteWidth * gamePixelScale;
+        const int previewSpriteHeight = spriteHeight * gamePixelScale;
+        const int previewX = (previewWidth - previewSpriteWidth) / 2;
+        const int previewY = previewHeight - previewSpriteHeight - 12;
+
+        Farmer who = Game1.player;
+        int savedFacing = who.FacingDirection;
+        int savedFrame = who.FarmerSprite.currentFrame;
+        GraphicsDevice graphicsDevice = Game1.graphics.GraphicsDevice;
+        RenderTargetBinding[] previousTargets = graphicsDevice.GetRenderTargets();
+
+        try
+        {
+            // FarmerRenderer positions its layers in the same 4x space used by the
+            // preview. Rendering directly to a 16x32 target only captured its corner.
+            using RenderTarget2D target = new(graphicsDevice, previewWidth, previewHeight,
+                false, SurfaceFormat.Color, DepthFormat.None);
+
+            who.faceDirection(facingDirection);
+            NormalizePreviewPose(who);
+            graphicsDevice.SetRenderTarget(target);
+            graphicsDevice.Clear(Color.Transparent);
+
+            using (SpriteBatch batch = new(graphicsDevice))
+            {
+                batch.Begin(SpriteSortMode.FrontToBack, BlendState.AlphaBlend, SamplerState.PointClamp);
+                FarmerRenderer.isDrawingForUI = true;
+                try
+                {
+                    // FarmerRenderer applies Stardew's normal 4x pixel zoom internally.
+                    // A quarter scale restores the original pixel dimensions for the PNG.
+                    who.FarmerRenderer.draw(
+                        batch,
+                        who.FarmerSprite.CurrentAnimationFrame,
+                        who.FarmerSprite.CurrentFrame,
+                        who.FarmerSprite.SourceRect,
+                        new Vector2(previewX, previewY),
+                        Vector2.Zero,
+                        1f,
+                        Color.White,
+                        0f,
+                        1f,
+                        who);
+                }
+                finally
+                {
+                    FarmerRenderer.isDrawingForUI = false;
+                }
+                batch.End();
+            }
+
+            graphicsDevice.SetRenderTargets(previousTargets);
+            Color[] previewPixels = new Color[previewWidth * previewHeight];
+            target.GetData(previewPixels);
+            Color[] pixels = new Color[spriteWidth * spriteHeight];
+            for (int y = 0; y < spriteHeight; y++)
+            for (int x = 0; x < spriteWidth; x++)
+                pixels[y * spriteWidth + x] = previewPixels[
+                    (previewY + y * gamePixelScale) * previewWidth + previewX + x * gamePixelScale];
+            Texture2D result = new(graphicsDevice, spriteWidth, spriteHeight);
+            result.SetData(pixels);
+            return result;
+        }
+        finally
+        {
+            // Always restore the UI's previous target, including if rendering or PNG
+            // preparation throws partway through. Leaving our temporary target active
+            // would make the rest of the menu render into a disposed texture.
+            graphicsDevice.SetRenderTargets(previousTargets);
+            who.faceDirection(savedFacing);
+            who.FarmerSprite.setCurrentSingleFrame(savedFrame);
+        }
+    }
+
+    private static Texture2D CreateNearestNeighborScale(Texture2D source, int scale)
+    {
+        if (scale == 1)
+        {
+            Color[] pixels = new Color[source.Width * source.Height];
+            source.GetData(pixels);
+            Texture2D copy = new(Game1.graphics.GraphicsDevice, source.Width, source.Height);
+            copy.SetData(pixels);
+            return copy;
+        }
+
+        Color[] sourcePixels = new Color[source.Width * source.Height];
+        source.GetData(sourcePixels);
+        int outputWidth = source.Width * scale;
+        int outputHeight = source.Height * scale;
+        Color[] outputPixels = new Color[outputWidth * outputHeight];
+
+        for (int y = 0; y < outputHeight; y++)
+        for (int x = 0; x < outputWidth; x++)
+            outputPixels[y * outputWidth + x] = sourcePixels[(y / scale) * source.Width + x / scale];
+
+        Texture2D output = new(Game1.graphics.GraphicsDevice, outputWidth, outputHeight);
+        output.SetData(outputPixels);
+        return output;
+    }
+
+    private static bool? GetMemberBool(object target, string name)
+    {
+        BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+        object? value = target.GetType().GetProperty(name, flags)?.GetValue(target)
+            ?? target.GetType().GetField(name, flags)?.GetValue(target);
+        return value as bool?;
+    }
+
+    private static object? InvokeExactCompatibleMethod(object target, string name, params object?[] args)
+        => TryInvokeExactCompatibleMethod(target, name, out object? result, args) ? result : null;
+
+    private static bool TryInvokeExactCompatibleMethod(
+        object target,
+        string name,
+        out object? result,
+        params object?[] args)
+    {
+        result = null;
+        BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+
+        foreach (MethodInfo method in target.GetType().GetMethods(flags))
+        {
+            if (method.Name != name)
+                continue;
+
+            ParameterInfo[] parameters = method.GetParameters();
+
+            if (parameters.Length != args.Length)
+                continue;
+
+            bool compatible = true;
+
+            for (int i = 0; i < parameters.Length; i++)
+            {
+                object? value = args[i];
+
+                if (value is null)
+                {
+                    if (parameters[i].ParameterType.IsValueType
+                        && Nullable.GetUnderlyingType(parameters[i].ParameterType) is null)
+                    {
+                        compatible = false;
+                        break;
+                    }
+
+                    continue;
+                }
+
+                if (!parameters[i].ParameterType.IsAssignableFrom(value.GetType()))
+                {
+                    compatible = false;
+                    break;
+                }
+            }
+
+            if (!compatible)
+                continue;
+
+            result = method.Invoke(target, args);
+            return true;
+        }
+
+        return false;
+    }
+
+    private static object? InvokeMethod(object target, string name, params object?[] args)
+    {
+        MethodInfo? method = target.GetType()
+            .GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+            .FirstOrDefault(m => m.Name == name && m.GetParameters().Length == args.Length);
+
+        return method?.Invoke(target, args);
+    }
+
+    private static bool TryRemoveOutfitFromManagerCollections(object outfitManager, string outfitName, object? outfit)
+    {
+        BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+
+        foreach (FieldInfo field in outfitManager.GetType().GetFields(flags))
+        {
+            if (TryRemoveFromCollection(field.GetValue(outfitManager), outfitName, outfit))
+                return true;
+        }
+
+        foreach (PropertyInfo property in outfitManager.GetType().GetProperties(flags))
+        {
+            if (property.GetIndexParameters().Length > 0)
+                continue;
+
+            try
+            {
+                if (TryRemoveFromCollection(property.GetValue(outfitManager), outfitName, outfit))
+                    return true;
+            }
+            catch
+            {
+                // Ignore properties that throw.
+            }
+        }
+
+        return false;
+    }
+
+    private static bool TryRemoveFromCollection(object? collection, string outfitName, object? outfit)
+    {
+        if (collection is null)
+            return false;
+
+        Type type = collection.GetType();
+
+        // Dictionary-like collections keyed by outfit name.
+        MethodInfo? containsKey = type.GetMethod("ContainsKey", new[] { typeof(string) });
+        MethodInfo? removeString = type.GetMethod("Remove", new[] { typeof(string) });
+        if (containsKey is not null && removeString is not null)
+        {
+            try
+            {
+                if (containsKey.Invoke(collection, new object?[] { outfitName }) is bool hasKey && hasKey)
+                    return removeString.Invoke(collection, new object?[] { outfitName }) is not bool removed || removed;
+            }
+            catch
+            {
+                // Fall through to list-like handling.
+            }
+        }
+
+        // List-like collections that support Remove(object).
+        if (outfit is not null)
+        {
+            MethodInfo? removeObject = type.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                .FirstOrDefault(m => m.Name == "Remove" && m.GetParameters().Length == 1 && m.GetParameters()[0].ParameterType.IsAssignableFrom(outfit.GetType()));
+
+            if (removeObject is not null)
+            {
+                try
+                {
+                    return removeObject.Invoke(collection, new object?[] { outfit }) is not bool removed || removed;
+                }
+                catch
+                {
+                    // Best-effort fallback only.
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static bool TrySetMember(object target, string memberName, object? value)
+    {
+        BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+
+        PropertyInfo? property = target.GetType().GetProperty(memberName, flags);
+        if (property is not null && property.CanWrite)
+        {
+            property.SetValue(target, value);
+            return true;
+        }
+
+        FieldInfo? field = target.GetType().GetField(memberName, flags);
+        if (field is not null)
+        {
+            field.SetValue(target, value);
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool TryInvokeCompatibleMethod(
+        object target,
+        IEnumerable<string> methodNames,
+        IEnumerable<object?[]> argumentSets,
+        out object? result)
+    {
+        BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+        MethodInfo[] methods = target.GetType().GetMethods(flags);
+
+        foreach (string methodName in methodNames)
+        {
+            foreach (object?[] args in argumentSets)
+            {
+                foreach (MethodInfo method in methods)
+                {
+                    if (method.Name != methodName)
+                        continue;
+
+                    ParameterInfo[] parameters = method.GetParameters();
+
+                    if (parameters.Length != args.Length)
+                        continue;
+
+                    bool compatible = true;
+
+                    for (int i = 0; i < parameters.Length; i++)
+                    {
+                        if (!IsParameterCompatible(parameters[i].ParameterType, args[i]))
+                        {
+                            compatible = false;
+                            break;
+                        }
+                    }
+
+                    if (!compatible)
+                        continue;
+
+                    result = method.Invoke(target, args);
+                    return true;
+                }
+            }
+        }
+
+        result = null;
+        return false;
+    }
+
+    private static bool IsParameterCompatible(Type parameterType, object? value)
+    {
+        if (value is null)
+            return !parameterType.IsValueType || Nullable.GetUnderlyingType(parameterType) is not null;
+
+        Type valueType = value.GetType();
+        return parameterType.IsAssignableFrom(valueType);
+    }
+}
