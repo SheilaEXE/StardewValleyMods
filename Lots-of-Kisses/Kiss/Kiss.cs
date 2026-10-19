@@ -17,6 +17,15 @@ namespace LotsOfKisses
             if (npc == null || Game1.player == null || npc.currentLocation != Game1.player.currentLocation)
                 return false;
 
+            // NPC.checkAction awards the marriage Stardrop before it reaches the normal kiss
+            // branch. An automatic kiss must not consume that one-time interaction: let the
+            // caller use our existing direct kiss visuals, leaving the gift for a real click.
+            if (IsSpouseStardropPending(npc))
+            {
+                DebugLog("KISS", $"Skipping simulated click for {npc.Name}: marriage Stardrop is pending; using direct kiss visuals instead.");
+                return false;
+            }
+
             bool previousSuppress = suppressDialogueFromAutoKissClick;
             NPC previousNpc = suppressDialogueAutoKissNpc;
             bool previousSuppressed = suppressedDialogueDuringAutoKissClick;
