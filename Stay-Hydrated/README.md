@@ -1,7 +1,6 @@
 # Stay Hydrated!
 
-Stay Hydrated! adds a glass and a bottle of iced water while keeping the original
-`SiL.IcedWaterCup` and `SiL.IcedWaterBottle` item IDs for compatibility.
+Stay Hydrated! adds a glass and a bottle of iced water to the game.
 
 - Buy unlimited bottles from Pierre or Gus for 50g.
 - Use the configurable keyboard, mouse, or controller button at sinks marked through Tile Marker to collect a glass of water.
