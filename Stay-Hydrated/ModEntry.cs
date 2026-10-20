@@ -18,6 +18,7 @@ public sealed class ModEntry : Mod
     public override void Entry(IModHelper helper)
     {
         Config = helper.ReadConfig<ModConfig>();
+        WaterTooltipPatch.Initialize(helper.Translation);
         HarmonyInstance = new Harmony(ModManifest.UniqueID);
         HarmonyInstance.PatchAll();
         helper.Events.GameLoop.GameLaunched += OnGameLaunched;
