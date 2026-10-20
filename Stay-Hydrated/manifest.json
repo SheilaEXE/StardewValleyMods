@@ -2,7 +2,7 @@
   "Name": "Stay Hydrated!",
   "Author": "NatrollEXE",
   "Version": "1.0.0",
-  "Description": "Adds refreshing water drinks, refillable sinks, and optional heatwave protection.",
+  "Description": "Adds drinkable water and hydration effects.",
   "UniqueID": "NatrollEXE.StayHydrated",
   "EntryDll": "StayHydrated.dll",
   "MinimumApiVersion": "4.0.0",

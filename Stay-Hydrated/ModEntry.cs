@@ -28,6 +28,7 @@ public sealed class ModEntry : Mod
     private void OnGameLaunched(object? sender, GameLaunchedEventArgs e)
     {
         CloudySkiesStaminaPatch.Apply(HarmonyInstance, Monitor);
+        ToolStaminaPatch.Apply(HarmonyInstance, Monitor);
 
         IGenericModConfigMenuApi? configMenu = Helper.ModRegistry.GetApi<IGenericModConfigMenuApi>("spacechase0.GenericModConfigMenu");
         if (configMenu is not null)
@@ -56,6 +57,14 @@ public sealed class ModEntry : Mod
     {
         return player.buffs.IsApplied(CupHydrationBuffId)
             || player.buffs.IsApplied(BottleHydrationBuffId);
+    }
+
+    internal static int GetFreshnessLevel(Farmer player)
+    {
+        if (player.buffs.IsApplied(BottleHydrationBuffId))
+            return 2;
+
+        return player.buffs.IsApplied(CupHydrationBuffId) ? 1 : 0;
     }
 
     internal static bool IsHeatwaveActive()

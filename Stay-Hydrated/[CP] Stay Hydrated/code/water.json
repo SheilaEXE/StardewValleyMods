@@ -65,7 +65,7 @@
       }
     },
     {
-      "LogName": "Hydration buffs during Weather Wonders heatwaves",
+      "LogName": "Hydration buffs for water drinks",
       "Action": "EditData",
       "Target": "Data/Objects",
       "Fields": {
@@ -85,10 +85,6 @@
             }
           ]
         }
-      },
-      "When": {
-        "HasMod": "Kana.WeatherWonders",
-        "Weather": "Kana.WeatherWonders_Heatwave"
       }
     },
     {
