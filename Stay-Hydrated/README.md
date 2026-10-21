@@ -6,8 +6,8 @@ This mod adds a glass and a bottle of ice-cold water to the game. Drink some wat
 
 ## Freshness Buff
 
-- **Glass of Iced Water:** +1 Freshness for 2 real minutes and 5% less energy spent when using tools by default.
-- **Bottle of Iced Water:** +2 Freshness for 4 real minutes and 10% less energy spent when using tools by default.
+- **Glass of Iced Water:** +1 Freshness for 2 minutes and 5% less energy spent when using tools by default.
+- **Bottle of Iced Water:** +2 Freshness for 4 minutes and 10% less energy spent when using tools by default.
 
 You can change the energy-saving percentages in Stay Hydrated!'s Generic Mod Config Menu settings.
 
