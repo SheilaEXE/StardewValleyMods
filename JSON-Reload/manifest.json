@@ -1,7 +1,7 @@
 {
   "Name": "Json Reload",
   "Author": "NatrollEXE",
-  "Version": "1.0.0",
+  "Version": "1.0.1",
   "Description": "Reloads changed Content Patcher JSON and i18n files.",
   "UniqueID": "NatrollEXE.JsonReload",
   "EntryDll": "JsonReload.dll",

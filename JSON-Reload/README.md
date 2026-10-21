@@ -2,7 +2,7 @@
 
 Reload changed Content Patcher JSON files without restarting Stardew Valley.
 
-Json Reload is a small utility tool. Press one key and it finds the loaded content packs you changed, validates their JSON, and reloads only those packs.
+Json Reload is a small utility tool. Press one key and it finds changed Content Patcher files and SMAPI mod translations, validates their JSON, and reloads them.
 
 ## Requirements
 
@@ -34,6 +34,6 @@ You notice that a Content Patcher mod is not available in your language, or you 
 ## What can be reloaded
 
 - Content Patcher JSON files
-- Content Patcher `i18n` translation files
+- `i18n` translation files from loaded SMAPI mods and Content Patcher packs
 
 Files such as `manifest.json` and `config.json`, C# mods, and content packs for other frameworks may still require a restart. Dialogues or events already in progress are not rebuilt.

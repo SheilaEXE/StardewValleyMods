@@ -7,7 +7,7 @@ namespace JsonReload;
 public sealed class ModEntry : Mod
 {
     private ModConfig config = new();
-    private ContentPackTracker tracker = null!;
+    private JsonFileTracker tracker = null!;
     private SmapiCommandInvoker commandInvoker = null!;
     private int lastReloadTick = -1;
     private int initialScanTicksRemaining = -1;
@@ -15,7 +15,7 @@ public sealed class ModEntry : Mod
     public override void Entry(IModHelper helper)
     {
         this.config = helper.ReadConfig<ModConfig>();
-        this.tracker = new ContentPackTracker(helper, this.Monitor);
+        this.tracker = new JsonFileTracker(helper, this.Monitor);
         this.commandInvoker = new SmapiCommandInvoker(helper.ConsoleCommands);
 
         helper.Events.GameLoop.GameLaunched += this.OnGameLaunched;
@@ -24,8 +24,8 @@ public sealed class ModEntry : Mod
 
         helper.ConsoleCommands.Add(
             "json_reload",
-            "Reload changed Content Patcher JSON and i18n files.",
-            (_, _) => this.ReloadChangedPacks()
+            "Reload changed Content Patcher JSON and SMAPI mod i18n files.",
+            (_, _) => this.ReloadChangedJson()
         );
     }
 
@@ -43,8 +43,12 @@ public sealed class ModEntry : Mod
         if (this.initialScanTicksRemaining-- > 0)
             return;
 
-        int count = this.tracker.DiscoverAndSnapshot();
-        this.Monitor.Log($"Tracking {count} loaded Content Patcher content pack(s) for JSON changes.", LogLevel.Info);
+        TrackingSummary summary = this.tracker.DiscoverAndSnapshot();
+        this.Monitor.Log(
+            $"Tracking {summary.ContentPackCount} loaded Content Patcher content pack(s) and "
+            + $"{summary.TranslationModCount} SMAPI mod translation folder(s) for JSON changes.",
+            LogLevel.Info
+        );
         this.initialScanTicksRemaining = -1;
     }
 
@@ -68,36 +72,36 @@ public sealed class ModEntry : Mod
             return;
         }
 
-        this.ReloadChangedPacks();
+        this.ReloadChangedJson();
     }
 
-    private void ReloadChangedPacks()
+    private void ReloadChangedJson()
     {
-        IReadOnlyList<PackChanges> changes = this.tracker.FindChanges();
+        IReadOnlyList<ModChanges> changes = this.tracker.FindChanges();
         if (changes.Count == 0)
         {
-            this.Monitor.Log("No changed Content Patcher JSON files were found.", LogLevel.Info);
+            this.Monitor.Log("No changed reloadable JSON files were found.", LogLevel.Info);
             this.ShowHudMessage(this.Helper.Translation.Get("message.no-changes"));
             return;
         }
 
-        var validReloads = new List<PackChanges>();
-        var invalidPacks = new List<string>();
+        var validReloads = new List<ModChanges>();
+        var invalidMods = new List<string>();
         var restartOnlyFiles = new List<string>();
         bool translationsChanged = false;
 
-        foreach (PackChanges packChanges in changes)
+        foreach (ModChanges modChanges in changes)
         {
-            if (!this.tracker.TryValidateChanges(packChanges, out IReadOnlyList<JsonValidationError> errors))
+            if (!this.tracker.TryValidateChanges(modChanges, out IReadOnlyList<JsonValidationError> errors))
             {
-                invalidPacks.Add(packChanges.Pack.Name);
+                invalidMods.Add(modChanges.Mod.Name);
                 foreach (JsonValidationError error in errors)
                 {
                     string position = error.Line is int line
                         ? $" (line {line}, column {error.Column ?? 0})"
                         : string.Empty;
                     this.Monitor.Log(
-                        $"Invalid JSON in '{packChanges.Pack.Name}': {error.RelativePath}{position}: {error.Message}",
+                        $"Invalid JSON in '{modChanges.Mod.Name}': {error.RelativePath}{position}: {error.Message}",
                         LogLevel.Error
                     );
                 }
@@ -105,27 +109,27 @@ public sealed class ModEntry : Mod
                 continue;
             }
 
-            string[] reloadablePaths = packChanges.ChangedPaths
-                .Where(path => !ContentPackTracker.IsRestartOnlyPath(path))
+            string[] reloadablePaths = modChanges.ChangedPaths
+                .Where(path => !JsonFileTracker.IsRestartOnlyPath(path))
                 .ToArray();
 
-            restartOnlyFiles.AddRange(packChanges.ChangedPaths
-                .Where(ContentPackTracker.IsRestartOnlyPath)
-                .Select(path => $"{packChanges.Pack.Name}: {path}"));
+            restartOnlyFiles.AddRange(modChanges.ChangedPaths
+                .Where(JsonFileTracker.IsRestartOnlyPath)
+                .Select(path => $"{modChanges.Mod.Name}: {path}"));
 
-            if (reloadablePaths.Any(ContentPackTracker.IsTranslationPath))
+            if (reloadablePaths.Any(JsonFileTracker.IsTranslationPath))
                 translationsChanged = true;
 
             if (reloadablePaths.Length > 0)
-                validReloads.Add(packChanges);
+                validReloads.Add(modChanges);
             else
-                packChanges.Pack.ReplaceSnapshot(packChanges.CurrentSnapshot);
+                modChanges.Mod.ReplaceSnapshot(modChanges.CurrentSnapshot);
         }
 
-        if (invalidPacks.Count > 0)
+        if (invalidMods.Count > 0)
         {
             this.ShowHudMessage(
-                this.Helper.Translation.Get("message.invalid", new { count = invalidPacks.Count }),
+                this.Helper.Translation.Get("message.invalid", new { count = invalidMods.Count }),
                 isError: true
             );
         }
@@ -150,19 +154,22 @@ public sealed class ModEntry : Mod
             return;
 
         var reloadedNames = new List<string>();
-        foreach (PackChanges packChanges in validReloads)
+        foreach (ModChanges modChanges in validReloads)
         {
-            if (!this.TryRunCommand("patch", new[] { "reload", packChanges.Pack.UniqueId }))
+            if (modChanges.Mod.IsContentPatcherPack
+                && !this.TryRunCommand("patch", new[] { "reload", modChanges.Mod.UniqueId }))
+            {
                 continue;
+            }
 
-            packChanges.Pack.ReplaceSnapshot(packChanges.CurrentSnapshot);
-            reloadedNames.Add(packChanges.Pack.Name);
+            modChanges.Mod.ReplaceSnapshot(modChanges.CurrentSnapshot);
+            reloadedNames.Add(modChanges.Mod.Name);
         }
 
         if (reloadedNames.Count > 0)
         {
             string names = string.Join(", ", reloadedNames);
-            this.Monitor.Log($"Hot-reloaded {reloadedNames.Count} content pack(s): {names}.", LogLevel.Info);
+            this.Monitor.Log($"Reloaded changed JSON for {reloadedNames.Count} mod(s): {names}.", LogLevel.Info);
             this.ShowHudMessage(this.Helper.Translation.Get(
                 "message.success",
                 new { count = reloadedNames.Count, packs = names }

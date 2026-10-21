@@ -4,24 +4,26 @@ using StardewModdingAPI;
 
 namespace JsonReload;
 
-internal sealed class ContentPackTracker
+internal sealed class JsonFileTracker
 {
     private const string ContentPatcherId = "Pathoschild.ContentPatcher";
 
     private readonly IModHelper helper;
     private readonly IMonitor monitor;
-    private readonly Dictionary<string, TrackedContentPack> packs = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, TrackedMod> mods = new(StringComparer.OrdinalIgnoreCase);
 
-    public ContentPackTracker(IModHelper helper, IMonitor monitor)
+    public JsonFileTracker(IModHelper helper, IMonitor monitor)
     {
         this.helper = helper;
         this.monitor = monitor;
     }
 
-    public int DiscoverAndSnapshot()
+    public TrackingSummary DiscoverAndSnapshot()
     {
-        this.packs.Clear();
+        this.mods.Clear();
         string modsPath = Path.Combine(Constants.GamePath, "Mods");
+        int contentPackCount = 0;
+        int translationModCount = 0;
 
         foreach (string manifestPath in EnumerateManifestFiles(modsPath))
         {
@@ -30,19 +32,30 @@ internal sealed class ContentPackTracker
                 JObject manifest = ReadJsonObject(manifestPath);
                 string? uniqueId = manifest.Value<string>("UniqueID");
                 string? targetId = manifest["ContentPackFor"]?.Value<string>("UniqueID");
+                string directoryPath = Path.GetDirectoryName(manifestPath)!;
+                bool isContentPatcherPack = string.Equals(
+                    targetId,
+                    ContentPatcherId,
+                    StringComparison.OrdinalIgnoreCase
+                );
+                bool hasTranslations = Directory.Exists(Path.Combine(directoryPath, "i18n"));
 
                 if (string.IsNullOrWhiteSpace(uniqueId)
-                    || !string.Equals(targetId, ContentPatcherId, StringComparison.OrdinalIgnoreCase)
-                    || !this.helper.ModRegistry.IsLoaded(uniqueId))
+                    || !this.helper.ModRegistry.IsLoaded(uniqueId)
+                    || (!isContentPatcherPack && !hasTranslations))
                 {
                     continue;
                 }
 
-                string directoryPath = Path.GetDirectoryName(manifestPath)!;
                 string name = manifest.Value<string>("Name") ?? uniqueId;
-                var pack = new TrackedContentPack(uniqueId, name, directoryPath);
-                pack.ReplaceSnapshot(CaptureSnapshot(directoryPath));
-                this.packs[uniqueId] = pack;
+                var mod = new TrackedMod(uniqueId, name, directoryPath, isContentPatcherPack);
+                mod.ReplaceSnapshot(CaptureSnapshot(mod));
+                this.mods[uniqueId] = mod;
+
+                if (isContentPatcherPack)
+                    contentPackCount++;
+                else
+                    translationModCount++;
             }
             catch (Exception ex)
             {
@@ -50,38 +63,38 @@ internal sealed class ContentPackTracker
             }
         }
 
-        return this.packs.Count;
+        return new TrackingSummary(contentPackCount, translationModCount);
     }
 
-    public IReadOnlyList<PackChanges> FindChanges()
+    public IReadOnlyList<ModChanges> FindChanges()
     {
-        var results = new List<PackChanges>();
+        var results = new List<ModChanges>();
 
-        foreach (TrackedContentPack pack in this.packs.Values.OrderBy(pack => pack.Name, StringComparer.OrdinalIgnoreCase))
+        foreach (TrackedMod mod in this.mods.Values.OrderBy(mod => mod.Name, StringComparer.OrdinalIgnoreCase))
         {
-            Dictionary<string, JsonFileStamp> current = CaptureSnapshot(pack.DirectoryPath);
-            string[] changedPaths = pack.Snapshot.Keys
+            Dictionary<string, JsonFileStamp> current = CaptureSnapshot(mod);
+            string[] changedPaths = mod.Snapshot.Keys
                 .Union(current.Keys, StringComparer.OrdinalIgnoreCase)
-                .Where(path => !pack.Snapshot.TryGetValue(path, out JsonFileStamp previous)
+                .Where(path => !mod.Snapshot.TryGetValue(path, out JsonFileStamp previous)
                     || !current.TryGetValue(path, out JsonFileStamp now)
                     || previous != now)
                 .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
                 .ToArray();
 
             if (changedPaths.Length > 0)
-                results.Add(new PackChanges(pack, current, changedPaths));
+                results.Add(new ModChanges(mod, current, changedPaths));
         }
 
         return results;
     }
 
-    public bool TryValidateChanges(PackChanges changes, out IReadOnlyList<JsonValidationError> errors)
+    public bool TryValidateChanges(ModChanges changes, out IReadOnlyList<JsonValidationError> errors)
     {
         var foundErrors = new List<JsonValidationError>();
 
         foreach (string relativePath in changes.ChangedPaths)
         {
-            string fullPath = Path.Combine(changes.Pack.DirectoryPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
+            string fullPath = Path.Combine(changes.Mod.DirectoryPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
             if (!File.Exists(fullPath))
                 continue;
 
@@ -146,16 +159,19 @@ internal sealed class ContentPackTracker
         }
     }
 
-    private static Dictionary<string, JsonFileStamp> CaptureSnapshot(string directoryPath)
+    private static Dictionary<string, JsonFileStamp> CaptureSnapshot(TrackedMod mod)
     {
         var snapshot = new Dictionary<string, JsonFileStamp>(StringComparer.OrdinalIgnoreCase);
+        string searchPath = mod.IsContentPatcherPack
+            ? mod.DirectoryPath
+            : Path.Combine(mod.DirectoryPath, "i18n");
 
         try
         {
-            foreach (string fullPath in Directory.EnumerateFiles(directoryPath, "*.json", SearchOption.AllDirectories))
+            foreach (string fullPath in Directory.EnumerateFiles(searchPath, "*.json", SearchOption.AllDirectories))
             {
                 var file = new FileInfo(fullPath);
-                string relativePath = Path.GetRelativePath(directoryPath, fullPath).Replace('\\', '/');
+                string relativePath = Path.GetRelativePath(mod.DirectoryPath, fullPath).Replace('\\', '/');
                 snapshot[relativePath] = new JsonFileStamp(file.Length, file.LastWriteTimeUtc.Ticks);
             }
         }
@@ -176,7 +192,7 @@ internal sealed class ContentPackTracker
     }
 }
 
-internal sealed class TrackedContentPack
+internal sealed class TrackedMod
 {
     public string UniqueId { get; }
 
@@ -184,13 +200,16 @@ internal sealed class TrackedContentPack
 
     public string DirectoryPath { get; }
 
+    public bool IsContentPatcherPack { get; }
+
     public Dictionary<string, JsonFileStamp> Snapshot { get; private set; } = new(StringComparer.OrdinalIgnoreCase);
 
-    public TrackedContentPack(string uniqueId, string name, string directoryPath)
+    public TrackedMod(string uniqueId, string name, string directoryPath, bool isContentPatcherPack)
     {
         this.UniqueId = uniqueId;
         this.Name = name;
         this.DirectoryPath = directoryPath;
+        this.IsContentPatcherPack = isContentPatcherPack;
     }
 
     public void ReplaceSnapshot(Dictionary<string, JsonFileStamp> snapshot)
@@ -199,11 +218,13 @@ internal sealed class TrackedContentPack
     }
 }
 
-internal sealed record PackChanges(
-    TrackedContentPack Pack,
+internal sealed record ModChanges(
+    TrackedMod Mod,
     Dictionary<string, JsonFileStamp> CurrentSnapshot,
     IReadOnlyList<string> ChangedPaths
 );
+
+internal readonly record struct TrackingSummary(int ContentPackCount, int TranslationModCount);
 
 internal readonly record struct JsonFileStamp(long Length, long LastWriteUtcTicks);
 
