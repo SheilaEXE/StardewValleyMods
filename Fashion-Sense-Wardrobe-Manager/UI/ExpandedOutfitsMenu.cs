@@ -2709,7 +2709,10 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
 
         _cosmeticShoeManager.SetShoe(_selectedOutfit, _pendingCosmeticShoeId);
         bool savedImmediately = _immediateOutfits.Capture(_selectedOutfit);
-        _renderer.CommitPreview();
+        // Saving another outfit must keep it as a reversible preview. Only the
+        // explicit Equip button should replace the outfit the player was wearing.
+        if (_renderer.IsPreviewingOriginalOutfit)
+            _renderer.CommitPreview();
         _footwearEditing = false;
         Game1.addHUDMessage(savedImmediately
             ? new HUDMessage(I18n.MessageFootwearSaved)
@@ -2791,7 +2794,7 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
 
         _cosmeticShoeManager.SetShoe(_selectedOutfit, cosmeticShoeId);
         bool savedImmediately = _immediateOutfits.Capture(_selectedOutfit);
-        if (_renderer.IsPreviewActive)
+        if (_renderer.IsPreviewingOriginalOutfit)
             _renderer.CommitPreview();
         _footwearEditing = false;
         _pendingCosmeticShoeId = null;

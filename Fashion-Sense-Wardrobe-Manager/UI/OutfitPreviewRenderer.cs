@@ -32,6 +32,19 @@ internal sealed class OutfitPreviewRenderer
 
     public bool IsPreviewActive => _activeOutfitName is not null;
     public string? ActiveOutfitName => _activeOutfitName;
+    public bool IsPreviewingOriginalOutfit
+    {
+        get
+        {
+            if (_activeOutfitName is null || _snapshot is null)
+                return false;
+
+            if (!_snapshot.TryGetValue("FashionSense.Outfit.CurrentId", out string? originalName))
+                _snapshot.TryGetValue("FashionSense.CurrentOutfit", out originalName);
+
+            return string.Equals(_activeOutfitName, originalName, StringComparison.OrdinalIgnoreCase);
+        }
+    }
 
     // Constructor
 
