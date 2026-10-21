@@ -122,6 +122,29 @@ internal sealed class ScheduleManager
             .Distinct()
             .OrderBy(time => time)
             .ToList();
+        rule.TimeWindows ??= new();
+        if (rule.Times.Count > 0)
+        {
+            // Old exact times stayed eligible after firing. An open-ended window
+            // preserves that behavior while allowing an end time to be set later.
+            foreach (int time in rule.Times)
+            {
+                if (!rule.TimeWindows.Any(window => window.Start == time && window.End is null))
+                    rule.TimeWindows.Add(new ScheduleTimeWindow { Start = time });
+            }
+            rule.Times.Clear();
+        }
+        rule.TimeWindows = rule.TimeWindows
+            .Where(window => window is not null && IsValidTime(window.Start))
+            .Select(window => new ScheduleTimeWindow
+            {
+                Start = window.Start,
+                End = window.End is int end && IsValidTime(end) && end != window.Start ? end : null
+            })
+            .GroupBy(window => (window.Start, window.End))
+            .Select(group => group.First())
+            .OrderBy(window => window.Start)
+            .ToList();
         rule.WeatherIds ??= new();
         if (rule.WeatherIds.Count == 0 && rule.Weather != ScheduleWeather.Any)
         {
@@ -154,6 +177,8 @@ internal sealed class ScheduleManager
 
         rule.FestivalIds ??= new();
         rule.FestivalIds = NormalizeIds(rule.FestivalIds);
+        if (rule.FestivalIds.Contains(ScheduleConditionIds.AnyFestival, StringComparer.OrdinalIgnoreCase))
+            rule.FestivalIds = new() { ScheduleConditionIds.AnyFestival };
 
         rule.OutfitNames = rule.OutfitNames
             .Where(name => !string.IsNullOrWhiteSpace(name))
@@ -197,6 +222,7 @@ internal sealed class ScheduleManager
     {
         int hour = time / 100;
         int minute = time % 100;
-        return hour is >= 6 and <= 26 && minute is >= 0 and < 60 && minute % 10 == 0;
+        return hour is >= 6 and <= 26 && minute is >= 0 and < 60
+            && minute % 10 == 0 && (hour < 26 || minute == 0);
     }
 }

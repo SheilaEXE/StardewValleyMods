@@ -1,6 +1,5 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using Microsoft.Xna.Framework.Input;
 using StardewValley;
 using StardewValley.BellsAndWhistles;
 using StardewValley.Menus;
@@ -26,7 +25,7 @@ internal sealed class SchedulePanel
     private readonly Dictionary<ScheduleSection, Rectangle> _sideTabs = new();
     private readonly Dictionary<string, Rectangle> _ruleCards = new();
     private readonly Dictionary<int, Rectangle> _dayButtons = new();
-    private readonly Dictionary<int, Rectangle> _timeChips = new();
+    private readonly Dictionary<int, (Rectangle Start, Rectangle End, Rectangle Remove)> _timeWindowButtons = new();
     private readonly Dictionary<string, Rectangle> _conditionPickerRows = new(StringComparer.OrdinalIgnoreCase);
 
     private Rectangle _contentArea;
@@ -49,9 +48,9 @@ internal sealed class SchedulePanel
     private Rectangle _festivalButton;
     private Rectangle _periodButton;
     private Rectangle _locationButton;
-    private Rectangle _timeDownButton;
-    private Rectangle _timeUpButton;
     private Rectangle _addTimeButton;
+    private int _editingWindowIndex = -1;
+    private bool _editingWindowEnd;
     private Rectangle _selectOutfitsButton;
     private Rectangle _deleteButton;
     private Rectangle _conditionPickerBounds;
@@ -80,19 +79,14 @@ internal sealed class SchedulePanel
         None,
         Weather,
         Location,
-        Festival
+        Festival,
+        Time
     }
     private ConditionPickerKind _conditionPickerKind;
     private List<ScheduleConditionOption> _conditionPickerOptions = new();
     private int _conditionPickerScroll;
     private int _conditionPickerVisibleCount = 1;
     private bool _showCustomFestivals;
-    private int _draftTime = 2200;
-    private int _heldTimeDirection;
-    private double _timeHoldElapsedMs;
-    private double _timeHoldRepeatMs;
-    private const double TimeHoldInitialDelayMs = 350;
-    private const double TimeHoldRepeatMs = 70;
     private string? _selectedRuleId;
     private string? _outfitSelectionRuleId;
     private string? _nameEditRuleId;
@@ -215,7 +209,6 @@ internal sealed class SchedulePanel
 
     public void Close()
     {
-        ReleaseTimeHold();
         CloseConditionPicker();
         ActiveSection = null;
         _selectedRuleId = null;
@@ -342,15 +335,9 @@ internal sealed class SchedulePanel
             Game1.playSound("smallSelect");
             return true;
         }
-        else if (_timeDownButton.Contains(x, y))
-            StartTimeHold(-1);
-        else if (_timeUpButton.Contains(x, y))
-            StartTimeHold(1);
         else if (_addTimeButton.Contains(x, y))
         {
-            if (!selected.Times.Contains(_draftTime))
-                selected.Times.Add(_draftTime);
-            selected.Times.Sort();
+            selected.TimeWindows.Add(new ScheduleTimeWindow());
         }
         else if (_selectOutfitsButton.Contains(x, y))
         {
@@ -378,15 +365,23 @@ internal sealed class SchedulePanel
                 return true;
             }
 
-            foreach ((int time, Rectangle bounds) in _timeChips)
+            foreach ((int index, (Rectangle start, Rectangle end, Rectangle remove)) in _timeWindowButtons)
             {
-                if (!bounds.Contains(x, y))
-                    continue;
-
-                selected.Times.Remove(time);
-                Save();
-                Game1.playSound("trashcan");
-                return true;
+                if (start.Contains(x, y) || end.Contains(x, y))
+                {
+                    _editingWindowIndex = index;
+                    _editingWindowEnd = end.Contains(x, y);
+                    OpenConditionPicker(ConditionPickerKind.Time, selected);
+                    Game1.playSound("smallSelect");
+                    return true;
+                }
+                if (remove.Contains(x, y))
+                {
+                    selected.TimeWindows.RemoveAt(index);
+                    Save();
+                    Game1.playSound("trashcan");
+                    return true;
+                }
             }
 
             return _contentArea.Contains(x, y);
@@ -432,41 +427,6 @@ internal sealed class SchedulePanel
         }
 
         return false;
-    }
-
-    public void UpdateHeldControls(GameTime time)
-    {
-        if (_heldTimeDirection == 0)
-            return;
-
-        if (Mouse.GetState().LeftButton != ButtonState.Pressed)
-        {
-            ReleaseTimeHold();
-            return;
-        }
-
-        Rectangle activeArrow = _heldTimeDirection < 0 ? _timeDownButton : _timeUpButton;
-        if (!activeArrow.Contains(Game1.getMouseX(), Game1.getMouseY()))
-            return;
-
-        double elapsedMs = time.ElapsedGameTime.TotalMilliseconds;
-        _timeHoldElapsedMs += elapsedMs;
-        if (_timeHoldElapsedMs < TimeHoldInitialDelayMs)
-            return;
-
-        _timeHoldRepeatMs += elapsedMs;
-        while (_timeHoldRepeatMs >= TimeHoldRepeatMs)
-        {
-            _draftTime = AddMinutes(_draftTime, _heldTimeDirection * 10);
-            _timeHoldRepeatMs -= TimeHoldRepeatMs;
-        }
-    }
-
-    public void ReleaseTimeHold()
-    {
-        _heldTimeDirection = 0;
-        _timeHoldElapsedMs = 0;
-        _timeHoldRepeatMs = 0;
     }
 
     public bool HandleScrollbarDrag(int y)
@@ -711,7 +671,7 @@ internal sealed class SchedulePanel
     private void DrawEditor(SpriteBatch b)
     {
         _dayButtons.Clear();
-        _timeChips.Clear();
+        _timeWindowButtons.Clear();
         OutfitScheduleRule? rule = SelectedRule;
         Rectangle editor = _editorArea;
         IClickableMenu.drawTextureBox(b, Game1.mouseCursors, new Rectangle(384, 396, 15, 15),
@@ -736,17 +696,12 @@ internal sealed class SchedulePanel
             ? I18n.ScheduleNoOutfits
             : string.Join(", ", selectedSources);
         List<string> outfitLines = WrapText(outfits, _editorViewport.Width - 16);
-        int chipWidth = 128;
-        int chipGap = 8;
         int secondColumnX = _editorViewport.X + _editorViewport.Width / 2 + 48;
-        int chipAreaWidth = Math.Max(chipWidth, _editorViewport.Right - secondColumnX);
-        int chipColumns = Math.Max(1, chipAreaWidth / (chipWidth + chipGap));
-        int chipRows = Math.Max(1, (int)Math.Ceiling(rule.Times.Count / (double)chipColumns));
-        int extraTimeRowsHeight = Math.Max(0, chipRows - 1) * 46;
+        int timeRowsHeight = Math.Max(1, rule.TimeWindows.Count) * 48;
 
         bool festivalRule = rule.Section == ScheduleSection.Festivals;
         int contentHeight = 18 + 58 + 76 + 76 + 88 + (!festivalRule && rule.DayMode == ScheduleDayMode.Multiple ? 76 : 0)
-            + 88 + 90 + extraTimeRowsHeight + 54 + Math.Max(1, outfitLines.Count) * 26 + 16;
+            + 88 + 80 + timeRowsHeight + 54 + Math.Max(1, outfitLines.Count) * 26 + 16;
         _editorMaxScroll = Math.Max(0, contentHeight - _editorViewport.Height);
         _editorScrollPixels = Math.Clamp(_editorScrollPixels, 0, _editorMaxScroll);
 
@@ -855,31 +810,24 @@ internal sealed class SchedulePanel
         }
         y += 88;
 
-        DrawEditorLabel(b, I18n.ScheduleExactTimes, x, y);
-        _timeDownButton = new Rectangle(x, y + 32, 42, fieldH);
-        Rectangle timeValue = new(x + 46, y + 32, 82, fieldH);
-        _timeUpButton = new Rectangle(x + 132, y + 32, 42, fieldH);
-        _addTimeButton = new Rectangle(x + 180, y + 32, 120, fieldH);
-        DrawEditorArrow(b, _timeDownButton, LeftArrowSource);
-        DrawEditorButton(b, timeValue, FormatTime(_draftTime), Color.White);
-        DrawEditorArrow(b, _timeUpButton, RightArrowSource);
-        DrawEditorButton(b, _addTimeButton, I18n.ScheduleAddTime, Color.Wheat);
-
-        int chipIndex = 0;
-        foreach (int time in rule.Times)
+        DrawEditorLabel(b, I18n.ScheduleTimeRanges, x, y);
+        for (int index = 0; index < rule.TimeWindows.Count; index++)
         {
-            int chipCol = chipIndex % chipColumns;
-            int chipRow = chipIndex / chipColumns;
-            Rectangle chip = new(
-                col2 + chipCol * (chipWidth + chipGap),
-                y + 32 + chipRow * 46,
-                chipWidth,
-                fieldH);
-            _timeChips[time] = chip;
-            DrawTimeChip(b, chip, FormatTime(time));
-            chipIndex++;
+            ScheduleTimeWindow window = rule.TimeWindows[index];
+            int rowY = y + 32 + index * 48;
+            Rectangle start = new(x, rowY, 110, fieldH);
+            Rectangle end = new(x + 145, rowY, 170, fieldH);
+            Rectangle remove = new(x + 325, rowY, 40, fieldH);
+            _timeWindowButtons[index] = (start, end, remove);
+            DrawEditorButton(b, start, FormatTime(window.Start), Color.Wheat);
+            DrawEditorText(b, "–", new Vector2(x + 122, rowY + 7), Game1.textColor);
+            DrawEditorButton(b, end, window.End is int ending ? FormatTime(ending) : I18n.ScheduleNoEnd, Color.Wheat);
+            DrawEditorButton(b, remove, "×", Color.Salmon);
         }
-        y += 90 + extraTimeRowsHeight;
+        _addTimeButton = new Rectangle(x, y + 32 + rule.TimeWindows.Count * 48, 42, fieldH);
+        if (_editorViewport.Contains(_addTimeButton))
+            b.Draw(Game1.mouseCursors, _addTimeButton, new Rectangle(184, 345, 9, 9), Color.White);
+        y += 80 + timeRowsHeight;
 
         _selectOutfitsButton = new Rectangle(x, y, 240, 46);
         DrawEditorButton(b, _selectOutfitsButton, I18n.ScheduleSelectOutfits, Color.Plum);
@@ -926,8 +874,17 @@ internal sealed class SchedulePanel
             ConditionPickerKind.Weather => _conditionCatalog.GetWeatherOptions(rule.WeatherIds),
             ConditionPickerKind.Location => _conditionCatalog.GetLocationOptions(rule.LocationIds),
             ConditionPickerKind.Festival => _conditionCatalog.GetFestivalOptions(_showCustomFestivals, rule.FestivalIds),
+            ConditionPickerKind.Time => GetTimeOptions(),
             _ => new()
         };
+        if (kind == ConditionPickerKind.Time
+            && _editingWindowIndex >= 0 && _editingWindowIndex < rule.TimeWindows.Count)
+        {
+            ScheduleTimeWindow window = rule.TimeWindows[_editingWindowIndex];
+            int preferred = _editingWindowEnd ? window.End ?? 900 : window.Start;
+            int index = _conditionPickerOptions.FindIndex(option => option.Id == preferred.ToString());
+            _conditionPickerScroll = Math.Max(0, index - 3);
+        }
     }
 
     private void CloseConditionPicker()
@@ -968,6 +925,7 @@ internal sealed class SchedulePanel
             ConditionPickerKind.Weather => I18n.ScheduleSelectWeather,
             ConditionPickerKind.Location => I18n.ScheduleSelectLocations,
             ConditionPickerKind.Festival => I18n.ScheduleSelectFestivals,
+            ConditionPickerKind.Time => _editingWindowEnd ? I18n.ScheduleSelectEnd : I18n.ScheduleSelectStart,
             _ => string.Empty
         };
         SpriteText.drawStringWithScrollCenteredAt(b, title,
@@ -1004,7 +962,10 @@ internal sealed class SchedulePanel
         _conditionPickerScroll = Math.Clamp(_conditionPickerScroll, 0, maxScroll);
 
         _conditionPickerRows.Clear();
-        HashSet<string> selected = new(CurrentConditionIds(rule), StringComparer.OrdinalIgnoreCase);
+        HashSet<string> selected = _conditionPickerKind == ConditionPickerKind.Time
+            && _editingWindowIndex >= 0 && _editingWindowIndex < rule.TimeWindows.Count
+            ? new() { (_editingWindowEnd ? rule.TimeWindows[_editingWindowIndex].End : rule.TimeWindows[_editingWindowIndex].Start)?.ToString() ?? "none" }
+            : new(CurrentConditionIds(rule), StringComparer.OrdinalIgnoreCase);
         int rowY = _conditionPickerViewport.Y;
         foreach (ScheduleConditionOption option in _conditionPickerOptions
             .Skip(_conditionPickerScroll)
@@ -1053,7 +1014,13 @@ internal sealed class SchedulePanel
         int buttonY = _conditionPickerBounds.Bottom - 58;
         _conditionPickerClearButton = new Rectangle(_conditionPickerBounds.X + 24, buttonY, 180, 42);
         _conditionPickerDoneButton = new Rectangle(_conditionPickerBounds.Right - 204, buttonY, 180, 42);
-        DrawButton(b, _conditionPickerClearButton, I18n.ScheduleAny, Color.LightGray);
+        DrawButton(b, _conditionPickerClearButton,
+            _conditionPickerKind == ConditionPickerKind.Time
+                ? _editingWindowEnd ? I18n.ScheduleNoEnd : I18n.ButtonDone
+                : _conditionPickerKind == ConditionPickerKind.Festival
+                    ? I18n.ScheduleNoFestival
+                    : I18n.ScheduleAny,
+            Color.LightGray);
         DrawButton(b, _conditionPickerDoneButton, I18n.ButtonDone, Color.PaleGreen);
     }
 
@@ -1107,6 +1074,16 @@ internal sealed class SchedulePanel
         List<string> selected = CurrentConditionIds(rule);
         if (_conditionPickerClearButton.Contains(x, y))
         {
+            if (_conditionPickerKind == ConditionPickerKind.Time)
+            {
+                if (_editingWindowEnd && _editingWindowIndex >= 0 && _editingWindowIndex < rule.TimeWindows.Count)
+                {
+                    rule.TimeWindows[_editingWindowIndex].End = null;
+                    Save();
+                }
+                CloseConditionPicker();
+                return true;
+            }
             selected.Clear();
             Save();
             Game1.playSound("smallSelect");
@@ -1118,11 +1095,37 @@ internal sealed class SchedulePanel
             if (!row.Contains(x, y))
                 continue;
 
+            if (_conditionPickerKind == ConditionPickerKind.Time)
+            {
+                if (_editingWindowIndex >= 0 && _editingWindowIndex < rule.TimeWindows.Count
+                    && int.TryParse(id, out int selectedTime))
+                {
+                    ScheduleTimeWindow window = rule.TimeWindows[_editingWindowIndex];
+                    if (_editingWindowEnd)
+                        window.End = selectedTime == window.Start ? null : selectedTime;
+                    else
+                        window.Start = selectedTime;
+                    Save();
+                }
+                CloseConditionPicker();
+                Game1.playSound("smallSelect");
+                return true;
+            }
+
             int existing = selected.FindIndex(value => value.Equals(id, StringComparison.OrdinalIgnoreCase));
             if (existing >= 0)
                 selected.RemoveAt(existing);
             else
+            {
+                if (_conditionPickerKind == ConditionPickerKind.Festival)
+                {
+                    if (id.Equals(ScheduleConditionIds.AnyFestival, StringComparison.OrdinalIgnoreCase))
+                        selected.Clear();
+                    else
+                        selected.RemoveAll(value => value.Equals(ScheduleConditionIds.AnyFestival, StringComparison.OrdinalIgnoreCase));
+                }
                 selected.Add(id);
+            }
             Save();
             Game1.playSound("smallSelect");
             return true;
@@ -1140,6 +1143,20 @@ internal sealed class SchedulePanel
             _ => new()
         };
 
+    private List<ScheduleConditionOption> GetTimeOptions()
+    {
+        List<ScheduleConditionOption> options = new();
+        for (int hour = 6; hour <= 26; hour++)
+        {
+            for (int minute = 0; minute < 60 && (hour < 26 || minute == 0); minute += 10)
+            {
+                int time = hour * 100 + minute;
+                options.Add(new ScheduleConditionOption(time.ToString(), FormatTime(time)));
+            }
+        }
+        return options;
+    }
+
     private string WeatherSummary(OutfitScheduleRule rule)
         => ConditionSummary(rule.WeatherIds, weather: true);
 
@@ -1149,7 +1166,7 @@ internal sealed class SchedulePanel
     private string FestivalSummary(OutfitScheduleRule rule)
     {
         if (rule.FestivalIds.Count == 0)
-            return I18n.ScheduleAny;
+            return I18n.ScheduleNoFestival;
         if (rule.FestivalIds.Count > 1)
             return I18n.ScheduleSelectedCount(rule.FestivalIds.Count);
         return _conditionCatalog.GetFestivalLabel(rule.FestivalIds[0]);
@@ -1174,24 +1191,6 @@ internal sealed class SchedulePanel
         T[] values = Enum.GetValues<T>();
         int index = Array.IndexOf(values, value);
         return values[(index + 1) % values.Length];
-    }
-
-    private static int AddMinutes(int time, int delta)
-    {
-        int total = (time / 100) * 60 + time % 100 + delta;
-        int min = 6 * 60;
-        int max = 26 * 60;
-        if (total < min) total = max;
-        if (total > max) total = min;
-        return (total / 60) * 100 + total % 60;
-    }
-
-    private void StartTimeHold(int direction)
-    {
-        _heldTimeDirection = direction;
-        _timeHoldElapsedMs = 0;
-        _timeHoldRepeatMs = 0;
-        _draftTime = AddMinutes(_draftTime, direction * 10);
     }
 
     private static string FormatTime(int time)

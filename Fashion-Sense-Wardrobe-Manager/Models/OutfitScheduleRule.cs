@@ -52,6 +52,13 @@ internal enum ScheduleChangeFrequency
     EveryActivation
 }
 
+internal sealed class ScheduleTimeWindow
+{
+    public int Start { get; set; } = 2200;
+    // Null keeps the rule active until the end of the in-game day.
+    public int? End { get; set; }
+}
+
 internal sealed class OutfitScheduleRule
 {
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
@@ -66,6 +73,7 @@ internal sealed class OutfitScheduleRule
     public List<string> WeatherIds { get; set; } = new();
     public SchedulePeriod Period { get; set; } = SchedulePeriod.Any;
     public List<int> Times { get; set; } = new();
+    public List<ScheduleTimeWindow> TimeWindows { get; set; } = new();
     // Kept for migrating schedules created before dynamic location selection.
     public ScheduleLocation Location { get; set; } = ScheduleLocation.Any;
     public List<string> LocationIds { get; set; } = new();

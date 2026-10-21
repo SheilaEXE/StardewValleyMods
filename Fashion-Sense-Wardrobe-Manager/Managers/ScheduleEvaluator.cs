@@ -205,6 +205,17 @@ internal sealed class ScheduleEvaluator
         return Matches(rule, exactTimeTrigger: false);
     }
 
+    public bool HasTimeBoundaryNow()
+    {
+        if (!Context.IsWorldReady || Game1.player is null)
+            return false;
+
+        int time = Game1.timeOfDay;
+        return time is 600 or 1200 or 1800
+            || _manager.LoadRules().Any(rule => rule.Enabled && rule.TimeWindows.Any(window =>
+                window.Start == time || window.End == time));
+    }
+
     private static OutfitScheduleRule? FindWinningRule(
         IEnumerable<OutfitScheduleRule> rules,
         bool exactTimeTrigger)
@@ -228,7 +239,7 @@ internal sealed class ScheduleEvaluator
             return false;
         }
 
-        if (rule.Times.Count == 0)
+        if (rule.TimeWindows.Count == 0)
         {
             if (!exactTimeTrigger)
                 return true;
@@ -245,10 +256,14 @@ internal sealed class ScheduleEvaluator
         }
 
         if (exactTimeTrigger)
-            return rule.Times.Contains(Game1.timeOfDay);
+            return rule.TimeWindows.Any(window => window.Start == Game1.timeOfDay);
 
-        // On a warp or save load, a scheduled time remains eligible after it has passed.
-        return rule.Times.Any(time => time <= Game1.timeOfDay);
+        int now = Game1.timeOfDay;
+        return rule.TimeWindows.Any(window => window.End is not int end
+            ? now >= window.Start
+            : window.Start < end
+                ? now >= window.Start && now < end
+                : now >= window.Start || now < end);
     }
 
     private static bool MatchesSection(OutfitScheduleRule rule)
@@ -267,7 +282,10 @@ internal sealed class ScheduleEvaluator
 
     private static bool MatchesFestival(IReadOnlyCollection<string> festivalIds)
     {
-        if (festivalIds.Count > 0)
+        if (festivalIds.Count == 0)
+            return false;
+
+        if (!festivalIds.Contains(ScheduleConditionIds.AnyFestival, StringComparer.OrdinalIgnoreCase))
             return festivalIds.Any(IsFestivalActiveToday);
 
         if (!ActiveFestivalFinishedToday() && Utility.isFestivalDay(Game1.dayOfMonth, Game1.season))
@@ -367,9 +385,9 @@ internal sealed class ScheduleEvaluator
     {
         int section = rule.Section switch
         {
-            ScheduleSection.Festivals => 400,
-            ScheduleSection.Daily => 100,
-            _ => 300
+            ScheduleSection.Festivals => 10000,
+            ScheduleSection.Daily => 0,
+            _ => 100
         };
 
         int day = rule.Section == ScheduleSection.Festivals ? 0 : rule.DayMode switch
@@ -379,11 +397,13 @@ internal sealed class ScheduleEvaluator
             _ => 0
         };
 
-        int conditions = (rule.Section != ScheduleSection.Festivals && rule.WeatherIds.Count > 0 ? 4 : 0)
+        int conditions = (rule.Section != ScheduleSection.Festivals && rule.WeatherIds.Count > 0 ? 1000 : 0)
             + (rule.Period != SchedulePeriod.Any ? 4 : 0)
-            + (rule.Section != ScheduleSection.Festivals && rule.LocationIds.Count > 0 ? 4 : 0)
-            + (rule.Section == ScheduleSection.Festivals && rule.FestivalIds.Count > 0 ? 6 : 0)
-            + (rule.Times.Count > 0 ? 8 : 0);
+            + (rule.Section != ScheduleSection.Festivals && rule.LocationIds.Count > 0 ? 2000 : 0)
+            + (rule.Section == ScheduleSection.Festivals
+                && rule.FestivalIds.Count > 0
+                && !rule.FestivalIds.Contains(ScheduleConditionIds.AnyFestival, StringComparer.OrdinalIgnoreCase) ? 100 : 0)
+            + (rule.TimeWindows.Count > 0 ? 8 : 0);
 
         return section + day + conditions;
     }

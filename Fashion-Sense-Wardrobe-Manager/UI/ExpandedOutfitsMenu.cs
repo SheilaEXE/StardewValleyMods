@@ -1383,7 +1383,6 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
 
     public override void releaseLeftClick(int x, int y)
     {
-        _schedulePanel.ReleaseTimeHold();
         _schedulePanel.ReleaseScrollbarDrag();
         _draggingDropdownScrollbar = DropdownKind.None;
         _dropdownScrollbarDragOffsetY = 0;
@@ -1445,11 +1444,6 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
             UnhookTextInput();
             return;
         }
-
-        if (_schedulePanel.IsOpen && !_scheduleOutfitSelectionMode)
-            _schedulePanel.UpdateHeldControls(time);
-        else
-            _schedulePanel.ReleaseTimeHold();
 
         bool backspaceDown = Keyboard.GetState().IsKeyDown(Keys.Back);
 

@@ -11,6 +11,7 @@ internal sealed record ScheduleConditionOption(string Id, string Label);
 
 internal static class ScheduleConditionIds
 {
+    public const string AnyFestival = "$festival:any";
     public const string ActiveFestivalPrefix = "$festival:active:";
     public const string PassiveFestivalPrefix = "$festival:passive:";
     public const string Sunny = "$weather:Sunny";
@@ -100,6 +101,7 @@ internal sealed class ScheduleConditionCatalog
     {
         List<ScheduleConditionOption> options = new()
         {
+            new(ScheduleConditionIds.AnyFestival, I18n.ScheduleAnyFestival),
             new(ScheduleConditionIds.ActiveFestival("spring13"), I18n.ScheduleFestivalEgg),
             new(ScheduleConditionIds.PassiveFestival("DesertFestival"), I18n.ScheduleFestivalDesert),
             new(ScheduleConditionIds.ActiveFestival("spring24"), I18n.ScheduleFestivalFlowerDance),

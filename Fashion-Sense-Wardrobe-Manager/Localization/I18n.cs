@@ -216,6 +216,8 @@ internal static class I18n
     public static string ScheduleLocationSewer => Get("ui.schedule.location.sewer");
     public static string ScheduleFestival      => Get("ui.schedule.festival");
     public static string ScheduleSelectFestivals => Get("ui.schedule.select_festivals");
+    public static string ScheduleNoFestival => Get("ui.schedule.no_festival");
+    public static string ScheduleAnyFestival => Get("ui.schedule.any_festival");
     public static string ScheduleShowModFestivals => Get("ui.schedule.show_mod_festivals");
     public static string ScheduleHideModFestivals => Get("ui.schedule.hide_mod_festivals");
     public static string ScheduleFestivalEgg => Get("ui.schedule.festival.egg");
@@ -231,6 +233,10 @@ internal static class I18n
     public static string ScheduleFestivalNightMarket => Get("ui.schedule.festival.night_market");
     public static string ScheduleFestivalWinterStar => Get("ui.schedule.festival.winter_star");
     public static string ScheduleExactTimes   => Get("ui.schedule.exact_times");
+    public static string ScheduleTimeRanges => Get("ui.schedule.time_ranges");
+    public static string ScheduleNoEnd => Get("ui.schedule.no_end");
+    public static string ScheduleSelectStart => Get("ui.schedule.select_start");
+    public static string ScheduleSelectEnd => Get("ui.schedule.select_end");
     public static string ScheduleAddTime      => Get("ui.schedule.add_time");
     public static string ScheduleSelectOutfits => Get("ui.schedule.select_outfits");
     public static string ScheduleNoOutfits    => Get("ui.schedule.no_outfits");

@@ -370,7 +370,10 @@ internal sealed class ModEntry : Mod
     }
 
     private void OnTimeChanged(object? sender, TimeChangedEventArgs e)
-        => _scheduleEvaluator.Evaluate(exactTimeTrigger: true);
+    {
+        if (_scheduleEvaluator.HasTimeBoundaryNow())
+            _scheduleEvaluator.Evaluate();
+    }
 
     private void OnOneSecondUpdateTicked(object? sender, OneSecondUpdateTickedEventArgs e)
     {
