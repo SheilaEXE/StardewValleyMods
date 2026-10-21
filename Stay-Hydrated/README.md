@@ -1,6 +1,6 @@
 # Stay Hydrated!
 
-![Stay Hydrated! pixel-art logo with a water bottle and a glass](assets/StayHydratedBanner.png)
+![Stay Hydrated! pixel-art logo with a water bottle and a glass](img/StayHydratedBanner.png)
 
 This mod adds a glass and a bottle of ice-cold water to the game. Drink some water to restore energy and gain a temporary [Freshness buff](#freshness-buff) that helps you spend less energy while using tools.
 
