@@ -17,7 +17,3 @@ Source code for my Stardew Valley mods, organized with one folder per mod.
 | TileMarker | [TileMarker](TileMarker/) | [v1.1.0](https://github.com/SheilaEXE/StardewValleyMods/releases/tag/TileMarker/v1.1.0) |
 
 See [all releases](https://github.com/SheilaEXE/StardewValleyMods/releases) for older versions. Download the mod ZIP from a release page; the repository's source ZIP is not an installable mod package. Each imported folder keeps the commit history of its original repository's default branch.
-
----
-
-Código dos meus mods de Stardew Valley, organizado em uma pasta por mod. Os lançamentos anteriores estão na [página de versões deste repositório](https://github.com/SheilaEXE/StardewValleyMods/releases). A pasta **Stay-Hydrated** foi adicionada a partir dos arquivos locais, pois ainda não tinha um repositório próprio.
