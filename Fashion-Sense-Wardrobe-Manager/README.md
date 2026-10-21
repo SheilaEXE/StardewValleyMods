@@ -1,5 +1,7 @@
 # Fashion Sense - Wardrobe Manager
 
+![Wardrobe Manager banner](img/wardrobe-manager-banner.png)
+
 Preview, organize, filter, and automatically schedule your saved Fashion Sense outfits entirely in-game.
 
 [![Nexus Mods](https://img.shields.io/badge/Nexus%20Mods-Wardrobe%20Manager-orange)](https://www.nexusmods.com/stardewvalley/mods/45911)
