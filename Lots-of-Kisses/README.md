@@ -2,7 +2,7 @@
 
 Bring more affection, playfulness, and romance to your Stardew Valley relationships.
 
-Lots of Kisses expands the ways you can interact with your spouse or romantic partner. Share quick kisses, enjoy longer affectionate moments, and see how nearby villagers react.
+This mod expands the ways you can interact with your spouse or romantic partner. Share quick kisses, enjoy longer affectionate moments, and see how nearby villagers react.
 
 ## Main Features
 
@@ -33,14 +33,6 @@ NPCs without custom dialogue are still supported, so you can kiss them normally 
 - [Generic Mod Config Menu](https://www.nexusmods.com/stardewvalley/mods/5098) — customize the mod's settings from inside the game.
 - [Tile Marker](https://www.nexusmods.com/stardewvalley/mods/49175) — mark counters, tables, chairs, decorations, or other objects that should not block an NPC's line of sight. It only changes how Lots of Kisses checks visibility; it does not modify maps, furniture, or collisions.
 
-## Compatibility
-
-Lots of Kisses is compatible with [Hugs and Kisses](https://www.nexusmods.com/stardewvalley/mods/10062). Both mods can be installed and used together.
-
-Lots of Kisses includes built-in compatibility with [The Stardew Squad](https://www.nexusmods.com/stardewvalley/mods/35341). Recruited spouses and romantic partners can still receive Bump Kisses and Multi-Kisses while following you.
-
-Generic Mod Config Menu also includes an option that lets you choose whether kisses may temporarily interrupt a partner performing a Stardew Squad task. After the kiss ends, they are released and can continue what they were doing. If this option is disabled, working partners are not interrupted, while idle or following partners can still be kissed normally.
-
 ### Player-to-Player Marriage — Experimental
 
 The mod includes experimental support for multiplayer couples where one farmer is married to another farmer. It works in split-screen and online co-op, with support for Bump Kisses, automatic Multi-Kisses, and manual kiss options.
@@ -48,8 +40,6 @@ The mod includes experimental support for multiplayer couples where one farmer i
 For the best results, both players should use the same version of Lots of Kisses. Players can choose whether to accept kisses from their farmer spouse through Generic Mod Config Menu.
 
 As this feature is experimental, small visual or synchronization issues may occasionally happen depending on the platform or connection. If you find a problem, please send your full SMAPI log and say whether you were playing online or in split-screen.
-
-Now go give your favorite person a kiss... or ten.
 
 ---
 
