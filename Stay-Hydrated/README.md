@@ -1,6 +1,7 @@
 # Stay Hydrated!
 
-Stay Hydrated! adds a glass and a bottle of iced water to the game.
+Stay Hydrated! adds a glass and a bottle of iced water while keeping the original
+`SiL.IcedWaterCup` and `SiL.IcedWaterBottle` item IDs for compatibility.
 
 - Buy unlimited bottles from Pierre or Gus for 50g.
 - Use the configurable keyboard, mouse, or controller button at sinks marked through Tile Marker to collect a glass of water.
@@ -12,7 +13,7 @@ Stay Hydrated! adds a glass and a bottle of iced water to the game.
 
 - SMAPI
 - Content Patcher
-- Tile Marker 1.1.0 or later
+- Tile Marker 1.2.0 or later
 
-Generic Mod Config Menu is optional and provides the in-game button setting.
+Generic Mod Config Menu is optional. Tile Marker's menu configures the sink button, and Stay Hydrated!'s menu configures stamina savings.
 Weather Wonders is optional and enables heatwave protection.

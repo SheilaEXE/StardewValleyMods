@@ -41,13 +41,6 @@ public sealed class ModEntry : Mod
                 reset: () => Config = new ModConfig(),
                 save: () => Helper.WriteConfig(Config));
 
-            configMenu.AddKeybindList(
-                ModManifest,
-                getValue: () => Config.WaterSinkButton,
-                setValue: value => Config.WaterSinkButton = value,
-                name: () => Helper.Translation.Get("config.water-sink-button.name").ToString(),
-                tooltip: () => Helper.Translation.Get("config.water-sink-button.description").ToString());
-
             configMenu.AddNumberOption(
                 ModManifest,
                 getValue: () => Config.GlassStaminaSavingsPercent,
@@ -71,11 +64,6 @@ public sealed class ModEntry : Mod
                 formatValue: value => $"{value}%");
         }
 
-        IContentPatcherApi? contentPatcher = Helper.ModRegistry.GetApi<IContentPatcherApi>("Pathoschild.ContentPatcher");
-        contentPatcher?.RegisterToken(
-            ModManifest,
-            "WaterSinkButton",
-            () => new[] { Config.WaterSinkButton?.ToString() ?? "D5" });
     }
 
     internal static bool IsHydrated(Farmer player)

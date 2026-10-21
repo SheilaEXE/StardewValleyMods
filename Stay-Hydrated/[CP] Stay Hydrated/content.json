@@ -14,7 +14,10 @@
         "NatrollEXE.StayHydrated/WaterSinks": {
           "DisplayName": "{{i18n:tile-marker.water-sinks}}",
           "Interaction": {
-            "Button": "{{NatrollEXE.StayHydrated/WaterSinkButton}}",
+            "Button": "MouseX1",
+            "ConfigurableButton": true,
+            "ButtonConfigName": "{{i18n:tile-marker.water-button.name}}",
+            "ButtonConfigTooltip": "{{i18n:tile-marker.water-button.description}}",
             "Target": "Facing",
             "SuppressButton": true,
             "Actions": [

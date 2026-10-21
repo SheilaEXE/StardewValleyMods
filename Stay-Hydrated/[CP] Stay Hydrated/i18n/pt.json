@@ -5,5 +5,7 @@
   "item.water-bottle.description": "Uma garrafa de água bem gelada. Perfeita para se refrescar em dias quentes.",
   "buff.freshness.cup": "+1 Frescor",
   "buff.freshness.bottle": "+2 Frescor",
-  "tile-marker.water-sinks": "Pias do Stay Hydrated!"
+  "tile-marker.water-sinks": "Pias do Stay Hydrated!",
+  "tile-marker.water-button.name": "Stay Hydrated! — Botão para pegar água",
+  "tile-marker.water-button.description": "Escolha qualquer tecla, botão do mouse ou controle para pegar água nas pias marcadas."
 }
