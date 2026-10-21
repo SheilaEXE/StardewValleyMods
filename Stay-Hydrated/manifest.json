@@ -6,7 +6,7 @@
   "UniqueID": "NatrollEXE.StayHydrated",
   "EntryDll": "StayHydrated.dll",
   "MinimumApiVersion": "4.0.0",
-  "UpdateKeys": [],
+  "UpdateKeys": ["Nexus:52721"],
   "Dependencies": [
     {
       "UniqueID": "Pathoschild.ContentPatcher",

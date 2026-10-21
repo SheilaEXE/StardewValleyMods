@@ -5,6 +5,7 @@
   "Description": "Adds the water items, shops, buffs, and sink interaction for Stay Hydrated!",
   "UniqueID": "NatrollEXE.StayHydrated.ContentPack",
   "MinimumApiVersion": "4.0.0",
+  "UpdateKeys": ["Nexus:52721"],
   "ContentPackFor": {
     "UniqueID": "Pathoschild.ContentPatcher"
   },
