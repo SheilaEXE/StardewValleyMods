@@ -31,6 +31,8 @@ namespace TileMarker.ContentPatcherInterop
 
         private bool initialized;
 
+        internal event Action ConfigurableButtonsChanged;
+
         internal long StoreRevision => store.Revision;
         internal bool MergeCompatibleCategories => getMergeCompatibleCategories?.Invoke() == true;
         internal IReadOnlyList<ConfigurableInteractionButton> ConfigurableButtons => configurableButtons;
@@ -102,6 +104,8 @@ namespace TileMarker.ContentPatcherInterop
                 return;
             }
 
+            string previousButtons = GetConfigurableButtonSignature();
+
             foreach (var key in registeredCategories)
                 store.UnregisterContentPatcherCategory(key.OwnerModId, key.Category);
 
@@ -147,6 +151,15 @@ namespace TileMarker.ContentPatcherInterop
             monitor.Log(
                 $"[Tile Marker CP] Loaded {registeredCategories.Count} Content Patcher categor{(registeredCategories.Count == 1 ? "y" : "ies")}, including {runtimeCategories.Count} interaction definition(s).",
                 LogLevel.Trace);
+
+            if (previousButtons != GetConfigurableButtonSignature())
+                ConfigurableButtonsChanged?.Invoke();
+        }
+
+        private string GetConfigurableButtonSignature()
+        {
+            return string.Join("\u001e", configurableButtons.Select(option =>
+                $"{option.ConfigKey}\u001f{option.DisplayName}\u001f{option.Tooltip}\u001f{option.DefaultButton}"));
         }
 
         internal KeybindList GetConfiguredButton(ConfigurableInteractionButton option)

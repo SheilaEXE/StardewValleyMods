@@ -6,6 +6,6 @@
   "buff.freshness.cup": "+1 Freshness",
   "buff.freshness.bottle": "+2 Freshness",
   "tile-marker.water-sinks": "Stay Hydrated! sinks",
-  "tile-marker.water-button.name": "Stay Hydrated! — Get water button",
-  "tile-marker.water-button.description": "Choose the keyboard, mouse, or controller button used to collect water from marked sinks."
+  "tile-marker.water-button.name": "Stay Hydrated!",
+  "tile-marker.water-button.description": "Choose the button used to get water from marked sinks."
 }

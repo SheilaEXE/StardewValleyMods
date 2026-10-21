@@ -19,6 +19,8 @@ namespace TileMarker
         private EditorSession editor;
         private TileMarkerApi api;
         private ContentPatcherIntegration contentPatcherIntegration;
+        private IGenericModConfigMenuApi gmcm;
+        private bool refreshConfigMenu;
         private bool wasGameWindowActive = true;
         private SButton? activeDragButton;
 
@@ -38,6 +40,7 @@ namespace TileMarker
                 store,
                 () => Config?.MergeCompatibleCategories == true,
                 () => Config?.InteractionButtons);
+            contentPatcherIntegration.ConfigurableButtonsChanged += () => refreshConfigMenu = true;
 
             helper.Events.GameLoop.GameLaunched += OnGameLaunched;
             helper.Events.GameLoop.SaveLoaded += OnSaveLoaded;
@@ -65,9 +68,12 @@ namespace TileMarker
         {
             contentPatcherIntegration.Initialize();
 
-            var gmcm = Helper.ModRegistry.GetApi<IGenericModConfigMenuApi>("spacechase0.GenericModConfigMenu");
+            gmcm = Helper.ModRegistry.GetApi<IGenericModConfigMenuApi>("spacechase0.GenericModConfigMenu");
             if (gmcm != null)
+            {
                 ModConfigMenu.Register(this, gmcm, contentPatcherIntegration);
+                refreshConfigMenu = false;
+            }
         }
 
         private void OnSaveLoaded(object sender, SaveLoadedEventArgs e)
@@ -198,6 +204,14 @@ namespace TileMarker
 
         private void OnUpdateTicked(object sender, UpdateTickedEventArgs e)
         {
+            if (refreshConfigMenu && gmcm != null)
+            {
+                gmcm.Unregister(ModManifest);
+                ModConfigMenu.Register(this, gmcm, contentPatcherIntegration);
+                refreshConfigMenu = false;
+                Monitor.Log($"[Tile Marker CP] Refreshed Generic Mod Config Menu with {contentPatcherIntegration.ConfigurableButtons.Count} configurable interaction button(s).", LogLevel.Trace);
+            }
+
             bool isGameWindowActive = Game1.game1 == null || Game1.game1.IsActive;
             if (!isGameWindowActive)
             {

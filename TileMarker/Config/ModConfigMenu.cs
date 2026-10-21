@@ -7,6 +7,7 @@ namespace TileMarker.Config
     public interface IGenericModConfigMenuApi
     {
         void Register(IManifest mod, System.Action reset, System.Action save, bool titleScreenOnly = false);
+        void Unregister(IManifest mod);
         void AddKeybindList(IManifest mod, System.Func<StardewModdingAPI.Utilities.KeybindList> getValue, System.Action<StardewModdingAPI.Utilities.KeybindList> setValue, System.Func<string> name, System.Func<string> tooltip = null, string fieldId = null);
         void AddNumberOption(IManifest mod, System.Func<int> getValue, System.Action<int> setValue, System.Func<string> name, System.Func<string> tooltip = null, int? min = null, int? max = null, int? interval = null, System.Func<int, string> formatValue = null, string fieldId = null);
         void AddBoolOption(IManifest mod, System.Func<bool> getValue, System.Action<bool> setValue, System.Func<string> name, System.Func<string> tooltip = null, string fieldId = null);
