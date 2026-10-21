@@ -13,7 +13,7 @@ Stay Hydrated! adds a glass and a bottle of iced water while keeping the origina
 
 - SMAPI
 - Content Patcher
-- Tile Marker 1.2.0 or later
+- Tile Marker 1.1.1 or later
 
 Generic Mod Config Menu is optional. Tile Marker's menu configures the sink button, and Stay Hydrated!'s menu configures stamina savings.
 Weather Wonders is optional and enables heatwave protection.

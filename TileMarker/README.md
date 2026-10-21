@@ -239,7 +239,7 @@ Add Tile Marker as a dependency in the content pack's `manifest.json`:
 "Dependencies": [
   {
     "UniqueID": "NatrollEXE.TileMarker",
-    "MinimumVersion": "1.2.0",
+    "MinimumVersion": "1.1.1",
     "IsRequired": true
   }
 ]
