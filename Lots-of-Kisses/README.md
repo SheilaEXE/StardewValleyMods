@@ -1,5 +1,7 @@
 # Lots of Kisses
 
+![Lots of Kisses banner](img/49113-1784060553-1955796800.webp)
+
 Bring more affection, playfulness, and romance to your Stardew Valley relationships.
 
 This mod expands the ways you can interact with your spouse or romantic partner. Share quick kisses, enjoy longer affectionate moments, and see how nearby villagers react.
