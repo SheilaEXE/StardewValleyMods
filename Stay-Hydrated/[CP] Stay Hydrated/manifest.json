@@ -1,7 +1,7 @@
 {
   "Name": "Stay Hydrated! - Content Pack",
   "Author": "NatrollEXE",
-  "Version": "1.0.0",
+  "Version": "1.0.1",
   "Description": "Adds the water items, shops, buffs, and sink interaction for Stay Hydrated!",
   "UniqueID": "NatrollEXE.StayHydrated.ContentPack",
   "MinimumApiVersion": "4.0.0",
@@ -16,7 +16,7 @@
     },
     {
       "UniqueID": "NatrollEXE.TileMarker",
-      "MinimumVersion": "1.1.1",
+      "MinimumVersion": "1.1.2",
       "IsRequired": true
     },
     {

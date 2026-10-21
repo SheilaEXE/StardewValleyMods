@@ -24,6 +24,6 @@ If Weather Wonders is installed, drinking water during a heatwave protects you f
 
 - SMAPI
 - Content Patcher
-- Tile Marker 1.1.1 or later (required for collecting water from marked sinks)
+- Tile Marker 1.1.2 or later (required for collecting water from marked sinks)
 
 Generic Mod Config Menu is optional for changing the button and energy-saving percentages. Weather Wonders is optional and enables heatwave protection.

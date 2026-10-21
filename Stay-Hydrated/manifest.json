@@ -1,7 +1,7 @@
 {
   "Name": "Stay Hydrated!",
   "Author": "NatrollEXE",
-  "Version": "1.0.0",
+  "Version": "1.0.1",
   "Description": "Adds drinkable water and hydration effects.",
   "UniqueID": "NatrollEXE.StayHydrated",
   "EntryDll": "StayHydrated.dll",
