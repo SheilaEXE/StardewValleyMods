@@ -19,6 +19,8 @@ This mod expands the ways you can interact with your spouse or romantic partner.
 
 NPCs without custom dialogue are still supported, so you can kiss them normally even when no character-specific dialogue pack is installed.
 
+![Lots of Kisses gameplay demo](img/love-kisses.gif)
+
 ## Installation
 
 1. Install [SMAPI](https://smapi.io/).
