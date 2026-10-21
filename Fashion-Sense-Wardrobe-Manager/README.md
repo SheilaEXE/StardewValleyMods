@@ -42,6 +42,8 @@ The mod was originally released as **Fashion Sense Outfit Preview**. Its name an
 - Use automatic priority: festival schedules override seasonal schedules, and seasonal schedules override everyday schedules.
 - See whether a schedule is active now, waiting for a higher-priority rule, enabled, or manually disabled.
 
+![Wardrobe Manager outfit changes](img/change-outfits.gif)
+
 ## Installation
 
 1. Install [SMAPI](https://smapi.io/).
