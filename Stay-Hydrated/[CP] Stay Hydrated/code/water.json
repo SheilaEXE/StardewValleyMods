@@ -45,7 +45,7 @@
       "Target": "Data/Buffs",
       "Entries": {
         "NatrollEXE.StayHydrated_Cup": {
-          "Description": "{{i18n:buff.hydrated.description}}",
+          "Description": "{{i18n:buff.freshness.cup}}",
           "IsDebuff": false,
           "Duration": 120000,
           "MaxDuration": -1,
@@ -54,7 +54,7 @@
           "Effects": null
         },
         "NatrollEXE.StayHydrated_Bottle": {
-          "Description": "{{i18n:buff.hydrated.description}}",
+          "Description": "{{i18n:buff.freshness.bottle}}",
           "IsDebuff": false,
           "Duration": 240000,
           "MaxDuration": -1,

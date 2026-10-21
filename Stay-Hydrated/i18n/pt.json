@@ -1,5 +1,9 @@
 {
   "config.water-sink-button.name": "Tecla para pegar água",
   "config.water-sink-button.description": "Selecione esta opção e pressione qualquer tecla, botão do mouse ou controle para pegar água em uma pia marcada.",
+  "config.glass-stamina-savings.name": "Economia de energia do copo",
+  "config.glass-stamina-savings.description": "A porcentagem de energia das ferramentas economizada enquanto +1 Frescor estiver ativo.",
+  "config.bottle-stamina-savings.name": "Economia de energia da garrafa",
+  "config.bottle-stamina-savings.description": "A porcentagem de energia das ferramentas economizada enquanto +2 Frescor estiver ativo.",
   "tooltip.freshness": "+{{value}} Frescor"
 }

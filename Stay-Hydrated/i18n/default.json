@@ -1,5 +1,9 @@
 {
   "config.water-sink-button.name": "Get water button",
   "config.water-sink-button.description": "Select this option, then press any keyboard, mouse, or controller button to get water from a marked sink.",
+  "config.glass-stamina-savings.name": "Glass stamina savings",
+  "config.glass-stamina-savings.description": "The percentage of tool stamina saved while +1 Freshness is active.",
+  "config.bottle-stamina-savings.name": "Bottle stamina savings",
+  "config.bottle-stamina-savings.description": "The percentage of tool stamina saved while +2 Freshness is active.",
   "tooltip.freshness": "+{{value}} Freshness"
 }

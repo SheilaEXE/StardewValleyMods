@@ -94,13 +94,7 @@ internal static class FarmerStaminaPatch
             return;
         }
 
-        int freshness = ModEntry.GetFreshnessLevel(__instance);
-        float reduction = freshness switch
-        {
-            1 => 0.05f,
-            2 => 0.10f,
-            _ => 0f
-        };
+        float reduction = ModEntry.GetToolStaminaSavingsPercent(__instance) / 100f;
 
         if (reduction <= 0f)
             return;

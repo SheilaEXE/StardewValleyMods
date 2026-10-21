@@ -3,6 +3,7 @@
   "item.water-cup.description": "A refreshing glass of ice-cold water.",
   "item.water-bottle.name": "Bottle of Iced Water",
   "item.water-bottle.description": "A bottle of ice-cold water, perfect for hot days.",
-  "buff.hydrated.description": "So refreshing!",
+  "buff.freshness.cup": "+1 Freshness",
+  "buff.freshness.bottle": "+2 Freshness",
   "tile-marker.water-sinks": "Stay Hydrated! sinks"
 }

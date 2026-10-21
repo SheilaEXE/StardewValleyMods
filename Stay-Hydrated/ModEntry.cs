@@ -1,3 +1,4 @@
+using System;
 using HarmonyLib;
 using StardewModdingAPI;
 using StardewModdingAPI.Events;
@@ -12,12 +13,14 @@ public sealed class ModEntry : Mod
     internal const string WeatherWondersHotBuffId = "Kana.WeatherWonders_Hot";
     internal const string WeatherWondersHeatwaveId = "Kana.WeatherWonders_Heatwave";
 
-    private ModConfig Config = null!;
+    private static ModConfig Config = null!;
     private Harmony HarmonyInstance = null!;
 
     public override void Entry(IModHelper helper)
     {
         Config = helper.ReadConfig<ModConfig>();
+        Config.GlassStaminaSavingsPercent = Math.Clamp(Config.GlassStaminaSavingsPercent, 0, 100);
+        Config.BottleStaminaSavingsPercent = Math.Clamp(Config.BottleStaminaSavingsPercent, 0, 100);
         WaterTooltipPatch.Initialize(helper.Translation);
         HarmonyInstance = new Harmony(ModManifest.UniqueID);
         HarmonyInstance.PatchAll();
@@ -44,6 +47,28 @@ public sealed class ModEntry : Mod
                 setValue: value => Config.WaterSinkButton = value,
                 name: () => Helper.Translation.Get("config.water-sink-button.name").ToString(),
                 tooltip: () => Helper.Translation.Get("config.water-sink-button.description").ToString());
+
+            configMenu.AddNumberOption(
+                ModManifest,
+                getValue: () => Config.GlassStaminaSavingsPercent,
+                setValue: value => Config.GlassStaminaSavingsPercent = Math.Clamp(value, 0, 100),
+                name: () => Helper.Translation.Get("config.glass-stamina-savings.name").ToString(),
+                tooltip: () => Helper.Translation.Get("config.glass-stamina-savings.description").ToString(),
+                min: 0,
+                max: 100,
+                interval: 1,
+                formatValue: value => $"{value}%");
+
+            configMenu.AddNumberOption(
+                ModManifest,
+                getValue: () => Config.BottleStaminaSavingsPercent,
+                setValue: value => Config.BottleStaminaSavingsPercent = Math.Clamp(value, 0, 100),
+                name: () => Helper.Translation.Get("config.bottle-stamina-savings.name").ToString(),
+                tooltip: () => Helper.Translation.Get("config.bottle-stamina-savings.description").ToString(),
+                min: 0,
+                max: 100,
+                interval: 1,
+                formatValue: value => $"{value}%");
         }
 
         IContentPatcherApi? contentPatcher = Helper.ModRegistry.GetApi<IContentPatcherApi>("Pathoschild.ContentPatcher");
@@ -65,6 +90,16 @@ public sealed class ModEntry : Mod
             return 2;
 
         return player.buffs.IsApplied(CupHydrationBuffId) ? 1 : 0;
+    }
+
+    internal static int GetToolStaminaSavingsPercent(Farmer player)
+    {
+        return GetFreshnessLevel(player) switch
+        {
+            1 => Math.Clamp(Config.GlassStaminaSavingsPercent, 0, 100),
+            2 => Math.Clamp(Config.BottleStaminaSavingsPercent, 0, 100),
+            _ => 0
+        };
     }
 
     internal static bool IsHeatwaveActive()
