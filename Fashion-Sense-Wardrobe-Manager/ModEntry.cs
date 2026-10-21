@@ -43,6 +43,7 @@ internal sealed class ModEntry : Mod
     private ScheduleConditionCatalog _scheduleConditionCatalog = null!;
     private ScheduleEvaluator     _scheduleEvaluator = null!;
     private CosmeticShoeManager   _cosmeticShoeManager = null!;
+    private ImmediateOutfitPersistence _immediateOutfits = null!;
     private OutfitPreviewRenderer _renderer        = null!;
     private bool _scheduleEvaluationQueued;
     private int _scheduleEvaluationTicks;
@@ -77,6 +78,7 @@ internal sealed class ModEntry : Mod
         _organizationManager = new GlobalOrganizationManager(helper.Data, Monitor);
         _scheduleConditionCatalog = new ScheduleConditionCatalog(helper.ModRegistry);
         _cosmeticShoeManager = new CosmeticShoeManager(Monitor);
+        _immediateOutfits = new ImmediateOutfitPersistence(helper, Monitor, _cosmeticShoeManager);
         _renderer = new OutfitPreviewRenderer(Monitor, _cosmeticShoeManager);
         _scheduleEvaluator = new ScheduleEvaluator(_scheduleManager, _tagManager, _renderer, Monitor);
         I18n.Init(helper.Translation);
@@ -87,6 +89,7 @@ internal sealed class ModEntry : Mod
         helper.Events.Display.MenuChanged      += OnMenuChanged;
         helper.Events.GameLoop.DayStarted      += OnDayStarted;
         helper.Events.GameLoop.SaveLoaded      += OnSaveLoaded;
+        helper.Events.GameLoop.Saved           += OnSaved;
         helper.Events.GameLoop.TimeChanged     += OnTimeChanged;
         helper.Events.GameLoop.UpdateTicked     += TrackActiveFestivalEnd;
         helper.Events.GameLoop.OneSecondUpdateTicked += OnOneSecondUpdateTicked;
@@ -321,7 +324,7 @@ internal sealed class ModEntry : Mod
 
         var expanded = new ExpandedOutfitsMenu(_categoryManager, _tagManager, _organizationManager,
             _scheduleManager, _scheduleEvaluator, _scheduleConditionCatalog, _cosmeticShoeManager,
-            _renderer, outfitNames, fashionSenseMenu,
+            _immediateOutfits, _renderer, outfitNames, fashionSenseMenu,
             Path.Combine(Helper.DirectoryPath, "Exports"));
         Game1.activeClickableMenu = expanded;
 
@@ -332,9 +335,15 @@ internal sealed class ModEntry : Mod
 
     private void OnSaveLoaded(object? sender, SaveLoadedEventArgs e)
     {
+        _immediateOutfits.OnSaveLoaded();
         _wasAtActiveFestival = false;
         _scheduleEvaluator.ResetTracking();
         QueueScheduleEvaluation();
+    }
+
+    private void OnSaved(object? sender, SavedEventArgs e)
+    {
+        _immediateOutfits.OnSaved();
     }
 
     private void OnDayStarted(object? sender, DayStartedEventArgs e)

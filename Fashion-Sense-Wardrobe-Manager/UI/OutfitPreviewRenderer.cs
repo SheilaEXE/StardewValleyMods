@@ -700,7 +700,10 @@ internal sealed class OutfitPreviewRenderer
             return false;
 
         InvokeExactCompatibleMethod(outfitManager, "SetOutfit", Game1.player, outfit);
-        _cosmeticShoeManager.ApplyForOutfit(outfitName);
+        // Shoe color is player-wide. A saved outfit without a CP assignment must
+        // not inherit the previous preview's shoe color.
+        if (!_cosmeticShoeManager.ApplyForOutfit(outfitName))
+            _cosmeticShoeManager.ApplyEquippedBootAppearance();
         MarkSpriteDirty();
 
         return true;
@@ -749,7 +752,29 @@ internal sealed class OutfitPreviewRenderer
         if (_snapshotShoeColor is not null)
             Game1.player.changeShoeColor(_snapshotShoeColor);
 
+        InvalidateFashionSenseColorCache();
         MarkSpriteDirty();
+    }
+
+    private void InvalidateFashionSenseColorCache()
+    {
+        try
+        {
+            Type? fsType = FindType("FashionSense.FashionSense");
+            object? colorManager = fsType is null ? null : GetStaticField(fsType, "colorManager");
+            FieldInfo? cacheField = colorManager?.GetType().GetField(
+                "_farmerToColorIdToColorValue",
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+
+            // Fashion Sense caches colors separately from modData. Restoring only
+            // modData leaves the preview's colors visible in the Hand Mirror.
+            if (cacheField?.GetValue(colorManager) is IDictionary cache)
+                cache.Remove(Game1.player);
+        }
+        catch (Exception ex)
+        {
+            _monitor.Log($"Could not refresh Fashion Sense colors after preview: {ex}", LogLevel.Trace);
+        }
     }
 
     private void MarkSpriteDirty()

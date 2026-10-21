@@ -101,6 +101,7 @@
   "ui.modal.rename_outfit": "Renomear Outfit",
   "ui.error.rename_outfit_failed": "Não foi possível renomear o outfit.",
   "ui.error.update_outfit_failed": "Não foi possível atualizar o visual.",
+  "ui.error.immediate_save_failed": "Visual alterado nesta sessão, mas não foi possível gravar a cópia imediata. Salve o dia antes de sair.",
   "ui.message.outfit_updated": "Visual salvo atualizado.",
   "ui.confirm.update_outfit.title": "Atualizar Visual",
   "ui.confirm.update_outfit.msg": "Substituir o visual salvo '{{outfitName}}'\npela aparência atual do Fashion Sense?",

@@ -53,6 +53,7 @@ internal static class I18n
     public static string FashionSenseShoesTitle => Get("ui.fs_shoes.title");
     public static string FashionSenseShoesNone => Get("ui.fs_shoes.none");
     public static string ErrorSaveFootwearFailed => Get("ui.error.save_footwear_failed");
+    public static string ErrorImmediateSaveFailed => Get("ui.error.immediate_save_failed");
     public static string MessageFootwearSaved => Get("ui.message.footwear_saved");
     public static string SaveFootwearTooltip => Get("ui.tooltip.save_footwear");
     public static string SaveAppearanceTitle => Get("ui.save_appearance.title");

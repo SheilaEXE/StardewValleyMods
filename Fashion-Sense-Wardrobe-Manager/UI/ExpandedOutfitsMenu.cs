@@ -68,6 +68,7 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
     private readonly GlobalOrganizationManager _organizationManager;
     private readonly SchedulePanel         _schedulePanel;
     private readonly CosmeticShoeManager   _cosmeticShoeManager;
+    private readonly ImmediateOutfitPersistence _immediateOutfits;
     private readonly OutfitPreviewRenderer _renderer;
     private readonly IClickableMenu?       _returnMenu;
     private readonly List<string>          _allOutfitNames;
@@ -286,6 +287,7 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
         ScheduleEvaluator     scheduleEvaluator,
         ScheduleConditionCatalog scheduleConditionCatalog,
         CosmeticShoeManager cosmeticShoeManager,
+        ImmediateOutfitPersistence immediateOutfits,
         OutfitPreviewRenderer renderer,
         IReadOnlyList<string> allOutfitNames,
         IClickableMenu?       parentMenu = null,
@@ -301,6 +303,7 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
         _tagManager      = tagManager;
         _organizationManager = organizationManager;
         _cosmeticShoeManager = cosmeticShoeManager;
+        _immediateOutfits = immediateOutfits;
         _renderer        = renderer;
         _returnMenu      = parentMenu;
         _allOutfitNames  = allOutfitNames.Distinct().ToList();
@@ -2705,9 +2708,12 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
         }
 
         _cosmeticShoeManager.SetShoe(_selectedOutfit, _pendingCosmeticShoeId);
+        bool savedImmediately = _immediateOutfits.Capture(_selectedOutfit);
         _renderer.CommitPreview();
         _footwearEditing = false;
-        Game1.addHUDMessage(new HUDMessage(I18n.MessageFootwearSaved));
+        Game1.addHUDMessage(savedImmediately
+            ? new HUDMessage(I18n.MessageFootwearSaved)
+            : new HUDMessage(I18n.ErrorImmediateSaveFailed, HUDMessage.error_type));
         Game1.playSound("newArtifact");
     }
 
@@ -2784,13 +2790,16 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
         }
 
         _cosmeticShoeManager.SetShoe(_selectedOutfit, cosmeticShoeId);
+        bool savedImmediately = _immediateOutfits.Capture(_selectedOutfit);
         if (_renderer.IsPreviewActive)
             _renderer.CommitPreview();
         _footwearEditing = false;
         _pendingCosmeticShoeId = null;
         _pendingFashionSenseShoeId = null;
         RefreshParentMenu();
-        Game1.addHUDMessage(new HUDMessage(I18n.MessageAppearanceOverwritten));
+        Game1.addHUDMessage(savedImmediately
+            ? new HUDMessage(I18n.MessageAppearanceOverwritten)
+            : new HUDMessage(I18n.ErrorImmediateSaveFailed, HUDMessage.error_type));
         Game1.playSound("newArtifact");
     }
 

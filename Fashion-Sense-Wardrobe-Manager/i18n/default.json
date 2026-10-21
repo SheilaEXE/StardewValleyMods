@@ -101,6 +101,7 @@
   "ui.modal.rename_outfit": "Rename Outfit",
   "ui.error.rename_outfit_failed": "Could not rename the outfit.",
   "ui.error.update_outfit_failed": "Could not update the outfit.",
+  "ui.error.immediate_save_failed": "Outfit changed for this session, but the immediate backup failed. Save the day before quitting.",
   "ui.message.outfit_updated": "Saved outfit updated.",
   "ui.confirm.update_outfit.title": "Update Outfit",
   "ui.confirm.update_outfit.msg": "Replace the saved outfit '{{outfitName}}'\nwith your current Fashion Sense appearance?",
