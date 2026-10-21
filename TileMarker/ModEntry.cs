@@ -36,7 +36,8 @@ namespace TileMarker
                 Monitor,
                 ModManifest,
                 store,
-                () => Config?.MergeCompatibleCategories == true);
+                () => Config?.MergeCompatibleCategories == true,
+                () => Config?.InteractionButtons);
 
             helper.Events.GameLoop.GameLaunched += OnGameLaunched;
             helper.Events.GameLoop.SaveLoaded += OnSaveLoaded;
@@ -62,11 +63,11 @@ namespace TileMarker
 
         private void OnGameLaunched(object sender, GameLaunchedEventArgs e)
         {
+            contentPatcherIntegration.Initialize();
+
             var gmcm = Helper.ModRegistry.GetApi<IGenericModConfigMenuApi>("spacechase0.GenericModConfigMenu");
             if (gmcm != null)
-                ModConfigMenu.Register(this, gmcm);
-
-            contentPatcherIntegration.Initialize();
+                ModConfigMenu.Register(this, gmcm, contentPatcherIntegration);
         }
 
         private void OnSaveLoaded(object sender, SaveLoadedEventArgs e)

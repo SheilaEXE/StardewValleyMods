@@ -1,10 +1,5 @@
 {
   "Format": "2.9.0",
-  "ConfigSchema": {
-    "InteractionButton": {
-      "Default": "F"
-    }
-  },
   "Changes": [
     {
       "LogName": "Register example marked-tile interaction",
@@ -14,7 +9,8 @@
         "{{ModId}}/ExampleInteraction": {
           "DisplayName": "Example interaction tiles",
           "Interaction": {
-            "Button": "{{InteractionButton}}",
+            "Button": "F",
+            "ConfigurableButton": true,
             "Target": "Facing",
             "SuppressButton": true,
             "Actions": [

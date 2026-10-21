@@ -239,7 +239,7 @@ Add Tile Marker as a dependency in the content pack's `manifest.json`:
 "Dependencies": [
   {
     "UniqueID": "NatrollEXE.TileMarker",
-    "MinimumVersion": "1.1.0",
+    "MinimumVersion": "1.2.0",
     "IsRequired": true
   }
 ]
@@ -248,17 +248,9 @@ Add Tile Marker as a dependency in the content pack's `manifest.json`:
 Then add a category to `Mods/NatrollEXE.TileMarker/Categories`. The entry key must use
 `OwnerModId/Category`; `{{ModId}}` supplies the content pack's own unique ID:
 
-The interaction button should belong to the content pack's own `ConfigSchema`, for example:
-
-```json
-"ConfigSchema": {
-  "WaterSinkButton": {
-    "Default": "F"
-  }
-}
-```
-
-Pass that config token to Tile Marker in the category entry:
+To let Tile Marker manage the interaction button on its own GMCM page, opt in with
+`ConfigurableButton`. The content pack supplies the default button and may provide translated
+labels through Content Patcher tokens:
 
 ```json
 {
@@ -268,7 +260,10 @@ Pass that config token to Tile Marker in the category entry:
     "{{ModId}}/WaterSources": {
       "DisplayName": "Water sources",
       "Interaction": {
-        "Button": "{{WaterSinkButton}}",
+        "Button": "F",
+        "ConfigurableButton": true,
+        "ButtonConfigName": "{{i18n:tile-marker.button.name}}",
+        "ButtonConfigTooltip": "{{i18n:tile-marker.button.tooltip}}",
         "Target": "Facing",
         "SuppressButton": true,
         "Actions": [
@@ -281,7 +276,8 @@ Pass that config token to Tile Marker in the category entry:
 ```
 
 The category appears in Tile Marker's existing picker. After the player marks tiles, pressing the
-configured interaction button on the chosen target runs the trigger actions in order.
+button selected on Tile Marker's GMCM page runs the trigger actions in order. Packs that omit
+`ConfigurableButton` keep their current behavior, and API integrations are unchanged.
 
 ### Category fields
 
@@ -290,7 +286,10 @@ configured interaction button on the chosen target runs the trigger actions in o
 | `DisplayName` | no | Text shown in the category picker; defaults to the category ID. Supports Content Patcher tokens like `{{i18n:key}}`. |
 | `SharedGroup` | no | Stable group ID used by Tile Marker's existing merge-compatible-categories option. |
 | `Interaction` | no | Omit this when the pack only needs the category and query tokens. |
-| `Interaction.Button` | no | `Action`, `UseTool`, or a SMAPI keybind string such as `F` or `LeftShift + F`. Defaults to `Action`. This can use a config token owned by the content pack, such as `{{WaterSinkButton}}`; Tile Marker only reads the resolved value. |
+| `Interaction.Button` | no | `Action`, `UseTool`, or a SMAPI keybind string such as `F` or `LeftShift + F`. Defaults to `Action`. For configurable interactions, this is the default button. |
+| `Interaction.ConfigurableButton` | no | When `true`, Tile Marker adds this interaction's keyboard, mouse, or controller binding to its GMCM page. Only applies to custom keybind strings, not `Action` or `UseTool`. Defaults to `false`. |
+| `Interaction.ButtonConfigName` | no | Optional GMCM label for the configurable button. Supports resolved Content Patcher tokens such as `{{i18n:key}}`. |
+| `Interaction.ButtonConfigTooltip` | no | Optional GMCM tooltip for the configurable button. Supports resolved Content Patcher tokens such as `{{i18n:key}}`. |
 | `Interaction.Target` | no | `Facing`, `Standing`, or `Cursor`. Defaults to `Facing`. |
 | `Interaction.Actions` | yes, for interactions | One or more Stardew 1.6 trigger action strings. |
 | `Interaction.SuppressButton` | no | Suppress the original button after an action succeeds. Defaults to `true`. |
@@ -309,7 +308,7 @@ These use single braces intentionally, so they don't conflict with Content Patch
 
 ### Run a normal map action
 
-Tile Marker 1.1.0 includes a trigger action for Content Patcher packs which need the marked tile to
+Tile Marker includes a trigger action for Content Patcher packs which need the marked tile to
 behave like a normal map tile action:
 
 ```json

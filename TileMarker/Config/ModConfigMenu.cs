@@ -1,4 +1,5 @@
 using StardewModdingAPI;
+using TileMarker.ContentPatcherInterop;
 
 namespace TileMarker.Config
 {
@@ -13,11 +14,18 @@ namespace TileMarker.Config
 
     internal static class ModConfigMenu
     {
-        public static void Register(ModEntry mod, IGenericModConfigMenuApi gmcm)
+        public static void Register(
+            ModEntry mod,
+            IGenericModConfigMenuApi gmcm,
+            ContentPatcherIntegration contentPatcherIntegration)
         {
             gmcm.Register(
                 mod: mod.ModManifest,
-                reset: () => mod.Config = new ModConfig(),
+                reset: () =>
+                {
+                    mod.Config = new ModConfig();
+                    contentPatcherIntegration.RefreshConfiguredButtons();
+                },
                 save: mod.TryWriteConfig
             );
 
@@ -52,6 +60,21 @@ namespace TileMarker.Config
                 name: () => mod.Helper.Translation.Get("gmcm.option.merge-compatible-categories.name").ToString(),
                 tooltip: () => mod.Helper.Translation.Get("gmcm.option.merge-compatible-categories.tooltip").ToString()
             );
+
+            foreach (ConfigurableInteractionButton option in contentPatcherIntegration.ConfigurableButtons)
+            {
+                ConfigurableInteractionButton captured = option;
+                gmcm.AddKeybindList(
+                    mod: mod.ModManifest,
+                    getValue: () => contentPatcherIntegration.GetConfiguredButton(captured),
+                    setValue: value => contentPatcherIntegration.SetConfiguredButton(captured, value),
+                    name: () => captured.DisplayName,
+                    tooltip: string.IsNullOrWhiteSpace(captured.Tooltip)
+                        ? null
+                        : () => captured.Tooltip,
+                    fieldId: $"cp-button-{captured.ConfigKey.Replace('/', '-')}"
+                );
+            }
         }
     }
 }

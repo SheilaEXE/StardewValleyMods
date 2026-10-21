@@ -5,6 +5,7 @@
   "gmcm.option.left-click-brush.tooltip": "Recommended for touchscreens and environments like Cinderbox where touch acts as the left mouse button.",
   "gmcm.option.merge-compatible-categories.name": "Merge compatible categories",
   "gmcm.option.merge-compatible-categories.tooltip": "When enabled, categories that compatible mods intentionally place in the same shared group use the union of their marked tiles. Their selections stay stored separately and return to normal when this is disabled.",
+  "gmcm.option.interaction-button.name": "{{category}} — Interaction button",
   "picker.title": "Mark tiles for...",
   "editor.header": "Editing: {{category}}",
   "editor.tile": "Tile: {{x}}, {{y}}",

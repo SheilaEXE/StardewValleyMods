@@ -22,28 +22,33 @@ namespace TileMarker.ContentPatcherInterop
         private readonly IManifest manifest;
         private readonly MarkedTileStore store;
         private readonly Func<bool> getMergeCompatibleCategories;
+        private readonly Func<IDictionary<string, string>> getInteractionButtonOverrides;
         private readonly IAssetName categoriesAsset;
 
         private readonly HashSet<(string OwnerModId, string Category)> registeredCategories = new();
         private readonly Dictionary<(string OwnerModId, string Category), RuntimeCategory> runtimeCategories = new();
+        private readonly List<ConfigurableInteractionButton> configurableButtons = new();
 
         private bool initialized;
 
         internal long StoreRevision => store.Revision;
         internal bool MergeCompatibleCategories => getMergeCompatibleCategories?.Invoke() == true;
+        internal IReadOnlyList<ConfigurableInteractionButton> ConfigurableButtons => configurableButtons;
 
         public ContentPatcherIntegration(
             IModHelper helper,
             IMonitor monitor,
             IManifest manifest,
             MarkedTileStore store,
-            Func<bool> getMergeCompatibleCategories)
+            Func<bool> getMergeCompatibleCategories,
+            Func<IDictionary<string, string>> getInteractionButtonOverrides)
         {
             this.helper = helper;
             this.monitor = monitor;
             this.manifest = manifest;
             this.store = store;
             this.getMergeCompatibleCategories = getMergeCompatibleCategories;
+            this.getInteractionButtonOverrides = getInteractionButtonOverrides;
             categoriesAsset = helper.GameContent.ParseAssetName(CategoriesAssetName);
         }
 
@@ -102,6 +107,7 @@ namespace TileMarker.ContentPatcherInterop
 
             registeredCategories.Clear();
             runtimeCategories.Clear();
+            configurableButtons.Clear();
 
             foreach (var pair in definitions.OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase))
             {
@@ -133,7 +139,7 @@ namespace TileMarker.ContentPatcherInterop
                 var key = (ownerModId, category);
                 registeredCategories.Add(key);
 
-                RuntimeCategory runtime = TryCreateRuntimeCategory(key, definition.Interaction);
+                RuntimeCategory runtime = TryCreateRuntimeCategory(key, displayName, definition.Interaction);
                 if (runtime != null)
                     runtimeCategories[key] = runtime;
             }
@@ -141,6 +147,36 @@ namespace TileMarker.ContentPatcherInterop
             monitor.Log(
                 $"[Tile Marker CP] Loaded {registeredCategories.Count} Content Patcher categor{(registeredCategories.Count == 1 ? "y" : "ies")}, including {runtimeCategories.Count} interaction definition(s).",
                 LogLevel.Trace);
+        }
+
+        internal KeybindList GetConfiguredButton(ConfigurableInteractionButton option)
+        {
+            if (option == null)
+                return new KeybindList();
+
+            return ResolveConfiguredButton(option.ConfigKey, option.DefaultButton);
+        }
+
+        internal void SetConfiguredButton(ConfigurableInteractionButton option, KeybindList value)
+        {
+            if (option == null)
+                return;
+
+            IDictionary<string, string> overrides = getInteractionButtonOverrides?.Invoke();
+            if (overrides != null)
+                overrides[option.ConfigKey] = value?.ToString() ?? "";
+
+            if (runtimeCategories.TryGetValue(option.CategoryKey, out RuntimeCategory runtime))
+                runtime.Keybind = value ?? new KeybindList();
+        }
+
+        internal void RefreshConfiguredButtons()
+        {
+            foreach (ConfigurableInteractionButton option in configurableButtons)
+            {
+                if (runtimeCategories.TryGetValue(option.CategoryKey, out RuntimeCategory runtime))
+                    runtime.Keybind = ResolveConfiguredButton(option.ConfigKey, option.DefaultButton);
+            }
         }
 
         public bool TryHandleButton(SButton pressedButton)
@@ -279,6 +315,7 @@ namespace TileMarker.ContentPatcherInterop
 
         private RuntimeCategory TryCreateRuntimeCategory(
             (string OwnerModId, string Category) key,
+            string categoryDisplayName,
             ContentPatcherInteractionData interaction)
         {
             string[] actions = interaction?.Actions?
@@ -320,6 +357,28 @@ namespace TileMarker.ContentPatcherInterop
                 if (keybind == null || !keybind.Keybinds.Any())
                     throw new FormatException("the keybind was empty");
 
+                if (interaction.ConfigurableButton)
+                {
+                    string configKey = $"{key.OwnerModId}/{key.Category}";
+                    string optionName = string.IsNullOrWhiteSpace(interaction.ButtonConfigName)
+                        ? helper.Translation.Get(
+                            "gmcm.option.interaction-button.name",
+                            new { category = categoryDisplayName }).ToString()
+                        : interaction.ButtonConfigName.Trim();
+                    string optionTooltip = string.IsNullOrWhiteSpace(interaction.ButtonConfigTooltip)
+                        ? null
+                        : interaction.ButtonConfigTooltip.Trim();
+
+                    var option = new ConfigurableInteractionButton(
+                        key,
+                        configKey,
+                        optionName,
+                        optionTooltip,
+                        keybindText);
+                    configurableButtons.Add(option);
+                    keybind = ResolveConfiguredButton(configKey, keybindText);
+                }
+
                 return new RuntimeCategory(key, target, RuntimeButton.Keybind, keybind, actions, interaction.SuppressButton);
             }
             catch (Exception ex)
@@ -329,6 +388,29 @@ namespace TileMarker.ContentPatcherInterop
                     LogLevel.Warn);
                 return null;
             }
+        }
+
+        private KeybindList ResolveConfiguredButton(string configKey, string defaultButton)
+        {
+            IDictionary<string, string> overrides = getInteractionButtonOverrides?.Invoke();
+            if (overrides != null && overrides.TryGetValue(configKey, out string configured))
+            {
+                try
+                {
+                    if (string.IsNullOrWhiteSpace(configured))
+                        return new KeybindList();
+
+                    return KeybindList.Parse(NormalizeKeybindText(configured));
+                }
+                catch (Exception ex)
+                {
+                    monitor.Log(
+                        $"[Tile Marker CP] Ignored invalid configured button '{configured}' for {configKey}: {ex.Message}",
+                        LogLevel.Warn);
+                }
+            }
+
+            return KeybindList.Parse(defaultButton);
         }
 
         private static string NormalizeKeybindText(string rawButton)
@@ -456,7 +538,7 @@ namespace TileMarker.ContentPatcherInterop
             public string Category { get; }
             public InteractionTarget Target { get; }
             public RuntimeButton Button { get; }
-            public KeybindList Keybind { get; }
+            public KeybindList Keybind { get; set; }
             public string[] Actions { get; }
             public bool SuppressButton { get; }
 
@@ -487,6 +569,29 @@ namespace TileMarker.ContentPatcherInterop
                     _ => false,
                 };
             }
+        }
+    }
+
+    internal sealed class ConfigurableInteractionButton
+    {
+        public (string OwnerModId, string Category) CategoryKey { get; }
+        public string ConfigKey { get; }
+        public string DisplayName { get; }
+        public string Tooltip { get; }
+        public string DefaultButton { get; }
+
+        public ConfigurableInteractionButton(
+            (string OwnerModId, string Category) categoryKey,
+            string configKey,
+            string displayName,
+            string tooltip,
+            string defaultButton)
+        {
+            CategoryKey = categoryKey;
+            ConfigKey = configKey;
+            DisplayName = displayName;
+            Tooltip = tooltip;
+            DefaultButton = defaultButton;
         }
     }
 }

@@ -1,7 +1,7 @@
 {
   "Name": "Tile Marker",
   "Author": "NatrollEXE",
-  "Version": "1.1.0",
+  "Version": "1.2.0",
   "Description": "A small framework for visually selecting and saving map tiles.",
   "UniqueID": "NatrollEXE.TileMarker",
   "EntryDll": "TileMarker.dll",

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using StardewModdingAPI;
 using StardewModdingAPI.Utilities;
 
@@ -16,5 +17,8 @@ namespace TileMarker.Config
         // Categories remain stored separately. When enabled, categories that deliberately
         // register the same shared group are read as one union by consuming mods.
         public bool MergeCompatibleCategories { get; set; } = false;
+
+        // Per-category overrides for Content Patcher interactions that opt into Tile Marker's GMCM.
+        public Dictionary<string, string> InteractionButtons { get; set; } = new();
     }
 }

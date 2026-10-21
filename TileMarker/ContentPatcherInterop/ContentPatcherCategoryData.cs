@@ -16,6 +16,15 @@ namespace TileMarker.ContentPatcherInterop
         /// <summary>Action, UseTool, or a SMAPI keybind string such as F or LeftShift + F.</summary>
         public string Button { get; set; } = "Action";
 
+        /// <summary>Whether Tile Marker should expose this keybind in its GMCM page.</summary>
+        public bool ConfigurableButton { get; set; } = false;
+
+        /// <summary>An optional label for the keybind option shown in GMCM.</summary>
+        public string ButtonConfigName { get; set; }
+
+        /// <summary>An optional tooltip for the keybind option shown in GMCM.</summary>
+        public string ButtonConfigTooltip { get; set; }
+
         /// <summary>Facing, Standing, or Cursor.</summary>
         public string Target { get; set; } = "Facing";
 

@@ -1,5 +1,6 @@
 using StardewModdingAPI;
 using System;
+using System.Collections.Generic;
 using System.Security;
 using TileMarker.Config;
 
@@ -14,7 +15,9 @@ namespace TileMarker
         {
             try
             {
-                return helper.ReadConfig<ModConfig>();
+                ModConfig config = helper.ReadConfig<ModConfig>() ?? new ModConfig();
+                config.InteractionButtons ??= new Dictionary<string, string>();
+                return config;
             }
             catch (Exception ex) when (IsConfigPermissionException(ex))
             {
