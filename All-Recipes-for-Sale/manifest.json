@@ -1,9 +1,9 @@
 {
   "Name": "All Recipes for Sale!",
-  "Author": "Sheila",
+  "Author": "NatrollEXE",
   "Version": "1.1.1",
   "Description": "Adds every unknown cooking recipe, including recipes from compatible mods, to Gus's shop.",
-  "UniqueID": "Sheila.AllRecipesForSale",
+  "UniqueID": "NatrollEXE.AllRecipesForSale",
   "EntryDll": "AllRecipesForSale.dll",
   "MinimumApiVersion": "4.0.0",
   "Dependencies": [

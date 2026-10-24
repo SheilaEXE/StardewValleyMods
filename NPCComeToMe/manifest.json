@@ -1,9 +1,9 @@
 {
   "Name": "NPC, come to me!",
-  "Author": "Sheilinha",
+  "Author": "NatrollEXE",
   "Version": "1.0.0",
   "Description": "Aperte uma tecla configurável (via GMCM) e digite o nome de qualquer NPC — até de outros mods — para teleportá-lo até você.",
-  "UniqueID": "Sheilinha.NPCComeToMe",
+  "UniqueID": "NatrollEXE.NPCComeToMe",
   "EntryDll": "NPCComeToMe.dll",
   "MinimumApiVersion": "4.0.0",
   "UpdateKeys": [],

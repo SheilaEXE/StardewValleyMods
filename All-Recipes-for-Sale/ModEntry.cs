@@ -10,7 +10,7 @@ internal sealed class ModEntry : Mod
     private const string CookingRecipesAsset = "Data/CookingRecipes";
     private const string ShopsAsset = "Data/Shops";
     private const string SaloonShopId = "Saloon";
-    private const string EntryIdPrefix = "Sheila.AllRecipesForSale/";
+    private const string EntryIdPrefix = "NatrollEXE.AllRecipesForSale/";
 
     private ModConfig Config = null!;
 
