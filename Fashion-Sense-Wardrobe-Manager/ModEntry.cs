@@ -43,6 +43,7 @@ internal sealed class ModEntry : Mod
     private ScheduleConditionCatalog _scheduleConditionCatalog = null!;
     private ScheduleEvaluator     _scheduleEvaluator = null!;
     private CosmeticShoeManager   _cosmeticShoeManager = null!;
+    private IndoorOutfitAdjustmentManager _indoorAdjustments = null!;
     private ImmediateOutfitPersistence _immediateOutfits = null!;
     private OutfitPreviewRenderer _renderer        = null!;
     private bool _scheduleEvaluationQueued;
@@ -78,9 +79,10 @@ internal sealed class ModEntry : Mod
         _organizationManager = new GlobalOrganizationManager(helper.Data, Monitor);
         _scheduleConditionCatalog = new ScheduleConditionCatalog(helper.ModRegistry);
         _cosmeticShoeManager = new CosmeticShoeManager(Monitor);
+        _indoorAdjustments = new IndoorOutfitAdjustmentManager();
         _immediateOutfits = new ImmediateOutfitPersistence(helper, Monitor, _cosmeticShoeManager);
         _renderer = new OutfitPreviewRenderer(Monitor, _cosmeticShoeManager);
-        _scheduleEvaluator = new ScheduleEvaluator(_scheduleManager, _tagManager, _renderer, Monitor);
+        _scheduleEvaluator = new ScheduleEvaluator(_scheduleManager, _tagManager, _indoorAdjustments, _renderer, Monitor);
         I18n.Init(helper.Translation);
 
         helper.Events.GameLoop.GameLaunched    += OnGameLaunched;
@@ -323,7 +325,7 @@ internal sealed class ModEntry : Mod
         List<string> outfitNames = GetAllOutfitNames(fashionSenseMenu);
 
         var expanded = new ExpandedOutfitsMenu(_categoryManager, _tagManager, _organizationManager,
-            _scheduleManager, _scheduleEvaluator, _scheduleConditionCatalog, _cosmeticShoeManager,
+            _scheduleManager, _scheduleEvaluator, _scheduleConditionCatalog, _cosmeticShoeManager, _indoorAdjustments,
             _immediateOutfits, _renderer, outfitNames, fashionSenseMenu,
             Path.Combine(Helper.DirectoryPath, "Exports"));
         Game1.activeClickableMenu = expanded;

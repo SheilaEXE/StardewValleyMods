@@ -68,6 +68,7 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
     private readonly GlobalOrganizationManager _organizationManager;
     private readonly SchedulePanel         _schedulePanel;
     private readonly CosmeticShoeManager   _cosmeticShoeManager;
+    private readonly IndoorOutfitAdjustmentManager _indoorAdjustments;
     private readonly ImmediateOutfitPersistence _immediateOutfits;
     private readonly OutfitPreviewRenderer _renderer;
     private readonly IClickableMenu?       _returnMenu;
@@ -140,6 +141,15 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
     private string?   _contextOutfitName = null;
     private Rectangle _renameContextMenuRect;
     private Rectangle _updateOutfitContextMenuRect;
+    private Rectangle _indoorAdjustmentContextMenuRect;
+
+    // Optional per-outfit indoor adjustments (Fashion Sense hat and accessories).
+    private bool _indoorAdjustmentModalOpen;
+    private string? _indoorAdjustmentOutfitName;
+    private List<OutfitPreviewRenderer.RemovableFashionSensePiece> _indoorPieces = new();
+    private HashSet<string> _indoorHiddenAccessories = new(StringComparer.OrdinalIgnoreCase);
+    private string _indoorHiddenHatId = string.Empty;
+    private int _indoorPieceScroll;
 
     // "Assign mode" for categories
     private bool          _assignMode         = false;
@@ -287,6 +297,7 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
         ScheduleEvaluator     scheduleEvaluator,
         ScheduleConditionCatalog scheduleConditionCatalog,
         CosmeticShoeManager cosmeticShoeManager,
+        IndoorOutfitAdjustmentManager indoorAdjustments,
         ImmediateOutfitPersistence immediateOutfits,
         OutfitPreviewRenderer renderer,
         IReadOnlyList<string> allOutfitNames,
@@ -303,6 +314,7 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
         _tagManager      = tagManager;
         _organizationManager = organizationManager;
         _cosmeticShoeManager = cosmeticShoeManager;
+        _indoorAdjustments = indoorAdjustments;
         _immediateOutfits = immediateOutfits;
         _renderer        = renderer;
         _returnMenu      = parentMenu;
@@ -485,7 +497,9 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
             drawHoverText(b, _hoveredTruncatedOutfitName, Game1.smallFont);
         }
 
-        if (_shoePickerOpen)
+        if (_indoorAdjustmentModalOpen)
+            DrawIndoorAdjustmentModal(b);
+        else if (_shoePickerOpen)
             DrawShoePicker(b);
         else if (_fashionSenseShoePickerOpen)
             DrawFashionSenseShoePicker(b);
@@ -497,6 +511,12 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
 
     public override void receiveLeftClick(int x, int y, bool playSound = true)
     {
+        if (_indoorAdjustmentModalOpen)
+        {
+            HandleIndoorAdjustmentClick(x, y);
+            return;
+        }
+
         if (_shoePickerOpen)
         {
             HandleShoePickerClick(x, y);
@@ -575,6 +595,14 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
                 _renameContextMenuOpen = false;
                 _contextOutfitName = null;
                 Game1.playSound("smallSelect");
+                return;
+            }
+
+            if (_contextOutfitName is not null && _indoorAdjustmentContextMenuRect.Contains(x, y))
+            {
+                OpenIndoorAdjustmentModal(_contextOutfitName);
+                _renameContextMenuOpen = false;
+                _contextOutfitName = null;
                 return;
             }
 
@@ -1244,7 +1272,9 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
 
     public override void receiveRightClick(int x, int y, bool playSound = true)
     {
-        if (IsNamingModalOpen
+        if (_indoorAdjustmentModalOpen || _shoePickerOpen || _fashionSenseShoePickerOpen
+            || _saveAppearanceChoiceOpen || _spriteExportOpen || _scheduleOutfitSelectionMode || _deleteOutfitMode
+            || IsNamingModalOpen
             || _confirmDeleteOutfits || _confirmDeleteSavedOutfits || _confirmDeleteCategory || _confirmDeleteTag || _confirmUpdateOutfit
             || _assignMode || _assignTagMode || _advancedPanel.IsOpen)
             return;
@@ -1260,14 +1290,17 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
         _contextOutfitName = _visibleOutfits[clickedRow];
         _renameContextMenuOpen = true;
 
-        int menuW = Math.Max(230, (int)Math.Ceiling(Math.Max(
-            Game1.smallFont.MeasureString(I18n.ButtonRename).X,
-            Game1.smallFont.MeasureString(I18n.ButtonUpdateOutfit).X)) + 32);
-        int menuH = CategoryBarH * 2 + 4;
+        int menuW = Math.Max(230, (int)Math.Ceiling(new[]
+        {
+            I18n.ButtonRename, I18n.ButtonUpdateOutfit,
+            I18n.IndoorAdjustmentsButton
+        }.Max(label => Game1.smallFont.MeasureString(label).X)) + 32);
+        int menuH = CategoryBarH * 3 + 8;
         int menuX = Math.Clamp(x, xPositionOnScreen + 12, xPositionOnScreen + width - menuW - 12);
         int menuY = Math.Clamp(y, yPositionOnScreen + 12, yPositionOnScreen + height - menuH - 12);
         _renameContextMenuRect = new Rectangle(menuX, menuY, menuW, CategoryBarH);
         _updateOutfitContextMenuRect = new Rectangle(menuX, menuY + CategoryBarH + 4, menuW, CategoryBarH);
+        _indoorAdjustmentContextMenuRect = new Rectangle(menuX, menuY + (CategoryBarH + 4) * 2, menuW, CategoryBarH);
 
         Game1.playSound("smallSelect");
     }
@@ -1290,7 +1323,12 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
 
         if (key == Keys.Escape)
         {
-            if (_shoePickerOpen || _fashionSenseShoePickerOpen || _saveAppearanceChoiceOpen)
+            if (_indoorAdjustmentModalOpen)
+            {
+                _indoorAdjustmentModalOpen = false;
+                Game1.playSound("smallSelect");
+            }
+            else if (_shoePickerOpen || _fashionSenseShoePickerOpen || _saveAppearanceChoiceOpen)
             {
                 _shoePickerOpen = false;
                 _fashionSenseShoePickerOpen = false;
@@ -1716,11 +1754,180 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
             new Vector2(_updateOutfitContextMenuRect.Center.X - updateSize.X / 2f,
                 _updateOutfitContextMenuRect.Center.Y - updateSize.Y / 2f),
             Game1.textColor);
+
+        DrawContextAction(b, _indoorAdjustmentContextMenuRect, I18n.IndoorAdjustmentsButton);
+    }
+
+    private static void DrawContextAction(SpriteBatch b, Rectangle bounds, string label)
+    {
+        bool hovered = bounds.Contains(Game1.getMouseX(), Game1.getMouseY());
+        drawTextureBox(b, Game1.mouseCursors, new Rectangle(432, 439, 9, 9),
+            bounds.X, bounds.Y, bounds.Width, bounds.Height,
+            hovered ? Color.Wheat : Color.White, 4f, drawShadow: true);
+
+        Vector2 size = Game1.smallFont.MeasureString(label);
+        Utility.drawTextWithShadow(b, label, Game1.smallFont,
+            new Vector2(bounds.Center.X - size.X / 2f, bounds.Center.Y - size.Y / 2f),
+            Game1.textColor);
+    }
+
+    private void OpenIndoorAdjustmentModal(string outfitName)
+    {
+        _indoorAdjustmentOutfitName = outfitName;
+        _indoorPieces = _renderer.GetRemovablePieces(outfitName);
+        IndoorOutfitAdjustment saved = _indoorAdjustments.Get(outfitName);
+        _indoorHiddenHatId = saved.HatId;
+        _indoorHiddenAccessories = new HashSet<string>(saved.AccessoryIds, StringComparer.OrdinalIgnoreCase);
+        _indoorPieceScroll = 0;
+        _indoorAdjustmentModalOpen = true;
+        _searchFocused = false;
+        Game1.playSound("bigSelect");
+    }
+
+    private static Rectangle GetIndoorAdjustmentBounds()
+        => new(Game1.uiViewport.Width / 2 - 370, Game1.uiViewport.Height / 2 - 315, 740, 630);
+
+    private static Rectangle GetIndoorPieceBounds(Rectangle modal, int row)
+        => new(modal.X + 38, modal.Y + 182 + row * 47, modal.Width - 76, 42);
+
+    private static Rectangle GetIndoorSaveBounds(Rectangle modal)
+        => new(modal.Center.X - 190, modal.Bottom - 64, 180, 44);
+
+    private static Rectangle GetIndoorCancelBounds(Rectangle modal)
+        => new(modal.Center.X + 10, modal.Bottom - 64, 180, 44);
+
+    private int GetIndoorPieceMaxScroll() => Math.Max(0, _indoorPieces.Count - 7);
+
+    private void DrawIndoorAdjustmentModal(SpriteBatch b)
+    {
+        b.Draw(Game1.fadeToBlackRect, Game1.graphics.GraphicsDevice.Viewport.Bounds, Color.Black * 0.55f);
+        Rectangle modal = GetIndoorAdjustmentBounds();
+        drawTextureBox(b, Game1.mouseCursors, new Rectangle(384, 373, 18, 18),
+            modal.X, modal.Y, modal.Width, modal.Height, Color.White, 4f, drawShadow: true);
+        SpriteText.drawStringWithScrollCenteredAt(b, I18n.IndoorAdjustmentsTitle, modal.Center.X, modal.Y + 26);
+
+        string name = TruncateString(_indoorAdjustmentOutfitName ?? string.Empty, Game1.smallFont, modal.Width - 90);
+        Vector2 nameSize = Game1.smallFont.MeasureString(name);
+        Utility.drawTextWithShadow(b, name, Game1.smallFont,
+            new Vector2(modal.Center.X - nameSize.X / 2f, modal.Y + 106), Game1.textColor);
+        string instruction = I18n.IndoorAdjustmentsInstruction;
+        Vector2 instructionSize = Game1.smallFont.MeasureString(instruction);
+        Utility.drawTextWithShadow(b, instruction, Game1.smallFont,
+            new Vector2(modal.Center.X - instructionSize.X / 2f, modal.Y + 139), Game1.textColor);
+
+        if (_indoorPieces.Count == 0)
+        {
+            string empty = I18n.IndoorAdjustmentsEmpty;
+            Vector2 emptySize = Game1.smallFont.MeasureString(empty);
+            Utility.drawTextWithShadow(b, empty, Game1.smallFont,
+                new Vector2(modal.Center.X - emptySize.X / 2f, modal.Center.Y - emptySize.Y / 2f),
+                Game1.textColor);
+        }
+
+        for (int row = 0; row < 7 && row + _indoorPieceScroll < _indoorPieces.Count; row++)
+        {
+            OutfitPreviewRenderer.RemovableFashionSensePiece piece = _indoorPieces[row + _indoorPieceScroll];
+            Rectangle cell = GetIndoorPieceBounds(modal, row);
+            bool selected = piece.IsHat
+                ? _indoorHiddenHatId.Equals(piece.Id, StringComparison.OrdinalIgnoreCase)
+                : _indoorHiddenAccessories.Contains(piece.Id);
+            bool hovered = cell.Contains(Game1.getMouseX(), Game1.getMouseY());
+            drawTextureBox(b, Game1.mouseCursors, new Rectangle(432, 439, 9, 9),
+                cell.X, cell.Y, cell.Width, cell.Height,
+                selected ? Color.PaleGreen : hovered ? Color.Wheat : Color.White,
+                4f, drawShadow: false);
+
+            Rectangle check = new(cell.X + 13, cell.Center.Y - 9, 18, 18);
+            b.Draw(Game1.mouseCursors, check, new Rectangle(227, 425, 9, 9), Color.White);
+            if (selected)
+                b.Draw(Game1.mouseCursors, check, new Rectangle(236, 425, 9, 9), Color.White);
+
+            string prefix = piece.IsHat ? I18n.IndoorHat : I18n.IndoorAccessory;
+            string label = TruncateString($"{prefix}: {piece.Label}", Game1.smallFont, cell.Width - 64);
+            Vector2 labelSize = Game1.smallFont.MeasureString(label);
+            Utility.drawTextWithShadow(b, label, Game1.smallFont,
+                new Vector2(cell.X + 44, cell.Center.Y - labelSize.Y / 2f), Game1.textColor);
+        }
+
+        DrawMenuButton(b, GetIndoorSaveBounds(modal), I18n.IndoorAdjustmentsSave);
+        DrawMenuButton(b, GetIndoorCancelBounds(modal), I18n.ButtonCancel);
+        if (GetIndoorPieceMaxScroll() > 0)
+        {
+            DrawArrowButton(b, GetShoePickerUpBounds(modal), LeftArrowSrc, rotated: true);
+            DrawArrowButton(b, GetShoePickerDownBounds(modal), RightArrowSrc, rotated: true);
+        }
+    }
+
+    private void HandleIndoorAdjustmentClick(int x, int y)
+    {
+        Rectangle modal = GetIndoorAdjustmentBounds();
+        if (GetIndoorSaveBounds(modal).Contains(x, y))
+        {
+            if (_indoorAdjustmentOutfitName is not null)
+            {
+                _indoorAdjustments.Set(_indoorAdjustmentOutfitName, new IndoorOutfitAdjustment
+                {
+                    HatId = _indoorHiddenHatId,
+                    AccessoryIds = _indoorHiddenAccessories.ToList()
+                });
+            }
+            _indoorAdjustmentModalOpen = false;
+            Game1.addHUDMessage(new HUDMessage(I18n.IndoorAdjustmentsSaved));
+            Game1.playSound("newArtifact");
+            return;
+        }
+
+        if (GetIndoorCancelBounds(modal).Contains(x, y))
+        {
+            _indoorAdjustmentModalOpen = false;
+            Game1.playSound("smallSelect");
+            return;
+        }
+
+        if (GetIndoorPieceMaxScroll() > 0 && GetShoePickerUpBounds(modal).Contains(x, y))
+        {
+            _indoorPieceScroll = Math.Max(0, _indoorPieceScroll - 1);
+            Game1.playSound("shwip");
+            return;
+        }
+        if (GetIndoorPieceMaxScroll() > 0 && GetShoePickerDownBounds(modal).Contains(x, y))
+        {
+            _indoorPieceScroll = Math.Min(GetIndoorPieceMaxScroll(), _indoorPieceScroll + 1);
+            Game1.playSound("shwip");
+            return;
+        }
+
+        for (int row = 0; row < 7 && row + _indoorPieceScroll < _indoorPieces.Count; row++)
+        {
+            if (!GetIndoorPieceBounds(modal, row).Contains(x, y))
+                continue;
+
+            OutfitPreviewRenderer.RemovableFashionSensePiece piece = _indoorPieces[row + _indoorPieceScroll];
+            if (piece.IsHat)
+                _indoorHiddenHatId = _indoorHiddenHatId.Equals(piece.Id, StringComparison.OrdinalIgnoreCase)
+                    ? string.Empty : piece.Id;
+            else if (!_indoorHiddenAccessories.Add(piece.Id))
+                _indoorHiddenAccessories.Remove(piece.Id);
+
+            Game1.playSound("smallSelect");
+            return;
+        }
     }
 
     private static string NoneCategoryLabel()
     {
         return I18n.ButtonNone;
+    }
+
+    private int GetCategoryDropdownWidth(Rectangle dropdownButton)
+    {
+        float longestLabel = Math.Max(
+            Game1.smallFont.MeasureString(NoneCategoryLabel()).X,
+            _categories.Max(category => Game1.smallFont.MeasureString(category.Name).X));
+        int desiredWidth = Math.Max(200, (int)Math.Ceiling(longestLabel) + DropdownScrollbarW + 32);
+        int availableWidth = Math.Max(dropdownButton.Width,
+            Game1.uiViewport.Width - dropdownButton.X - DropdownScreenMargin);
+        return Math.Min(desiredWidth, availableWidth);
     }
 
     private DropdownLayout GetDropdownLayout(
@@ -1804,6 +2011,9 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
             layout = default;
             return false;
         }
+
+        if (kind == DropdownKind.Category && _categories.Count > 0)
+            minimumWidth = GetCategoryDropdownWidth(dropTab.Bounds);
 
         layout = GetDropdownLayout(dropTab.Bounds, itemCount, minimumWidth, GetDropdownScroll(kind));
         SetDropdownScroll(kind, GetDropdownScroll(kind), layout.MaxScroll);
@@ -1944,7 +2154,7 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
         DropdownLayout layout = GetDropdownLayout(
             dropTab.Bounds,
             itemCount,
-            200,
+            GetCategoryDropdownWidth(dropTab.Bounds),
             _categoryDropdownScroll);
         _categoryDropdownScroll = Math.Clamp(_categoryDropdownScroll, 0, layout.MaxScroll);
 
@@ -1977,8 +2187,9 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
             else if (itemHovered)
                 b.Draw(Game1.staminaRect, itemRect, Color.Wheat * 0.4f);
 
-            Vector2 isz = Game1.smallFont.MeasureString(itemName);
-            Utility.drawTextWithShadow(b, itemName, Game1.smallFont,
+            string visibleName = TruncateString(itemName, Game1.smallFont, itemRect.Width - 20);
+            Vector2 isz = Game1.smallFont.MeasureString(visibleName);
+            Utility.drawTextWithShadow(b, visibleName, Game1.smallFont,
                 new Vector2(itemRect.X + 10, itemRect.Center.Y - isz.Y / 2f),
                 itemActive ? Color.SaddleBrown : Game1.textColor);
         }
@@ -3525,6 +3736,7 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
         _tagManager.SaveTags(_tags);
         _schedulePanel.RenameOutfit(oldName, newName);
         _cosmeticShoeManager.RenameOutfit(oldName, newName);
+        _indoorAdjustments.RenameOutfit(oldName, newName);
 
         if (_selectedOutfit is not null && _selectedOutfit.Equals(oldName, StringComparison.OrdinalIgnoreCase))
             _selectedOutfit = newName;
@@ -3735,6 +3947,7 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
         _tagManager.SaveTags(_tags);
         _schedulePanel.RemoveOutfits(deletedNames);
         _cosmeticShoeManager.RemoveOutfits(deletedNames);
+        _indoorAdjustments.RemoveOutfits(deletedNames);
 
         if (_selectedOutfit is not null && deletedNames.Contains(_selectedOutfit))
             _selectedOutfit = null;

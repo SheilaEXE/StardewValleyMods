@@ -39,6 +39,14 @@ internal static class I18n
     public static string ButtonNo             => Get("ui.button.no");
     public static string ButtonRename         => Get("ui.button.rename");
     public static string ButtonUpdateOutfit   => Get("ui.button.update_outfit");
+    public static string IndoorAdjustmentsButton => Get("ui.indoor_adjustments.button");
+    public static string IndoorAdjustmentsTitle => Get("ui.indoor_adjustments.title");
+    public static string IndoorAdjustmentsInstruction => Get("ui.indoor_adjustments.instruction");
+    public static string IndoorAdjustmentsEmpty => Get("ui.indoor_adjustments.empty");
+    public static string IndoorAdjustmentsSaved => Get("ui.indoor_adjustments.saved");
+    public static string IndoorAdjustmentsSave => Get("ui.indoor_adjustments.save");
+    public static string IndoorHat => Get("ui.indoor_adjustments.hat");
+    public static string IndoorAccessory => Get("ui.indoor_adjustments.accessory");
     public static string ButtonEdit           => Get("ui.button.edit");
     public static string ButtonDeleteTag      => Get("ui.button.delete_tag");
     public static string ButtonDeleteColor    => Get("ui.button.delete_color");

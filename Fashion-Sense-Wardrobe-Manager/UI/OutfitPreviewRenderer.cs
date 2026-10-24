@@ -18,6 +18,8 @@ namespace FashionSenseWardrobeManager;
 /// </summary>
 internal sealed class OutfitPreviewRenderer
 {
+    public sealed record RemovableFashionSensePiece(string Id, string Label, bool IsHat);
+
     internal sealed record FashionSenseShoeOption(string Id, string DisplayName, string PackName);
 
     // State
@@ -129,6 +131,101 @@ internal sealed class OutfitPreviewRenderer
         {
             return false;
         }
+    }
+
+    /// <summary>List the Fashion Sense hat and accessories stored in an outfit, without equipping it.</summary>
+    public List<RemovableFashionSensePiece> GetRemovablePieces(string outfitName)
+    {
+        var pieces = new List<RemovableFashionSensePiece>();
+        try
+        {
+            object? outfitManager = GetOutfitManager();
+            object? outfit = outfitManager is null ? null : GetOutfit(outfitManager, outfitName);
+            if (outfit is null)
+                return pieces;
+
+            Type? fsType = FindType("FashionSense.FashionSense");
+            object? textureManager = fsType is null ? null : GetStaticField(fsType, "textureManager");
+            IDictionary? models = textureManager is null ? null
+                : InvokeExactCompatibleMethod(textureManager, "GetIdToAppearanceModels") as IDictionary;
+
+            string? hatId = GetMemberString(outfit, "HatId");
+            if (IsAppearanceId(hatId))
+                pieces.Add(new RemovableFashionSensePiece(hatId!, GetAppearanceLabel(models, hatId!), true));
+
+            BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+            object? accessoryIds = outfit.GetType().GetProperty("AccessoryIds", flags)?.GetValue(outfit);
+            IEnumerable<string> ids = accessoryIds is IEnumerable values
+                ? values.Cast<object>().Select(value => value?.ToString() ?? string.Empty)
+                : Array.Empty<string>();
+            List<string> activeIds = ids.Where(IsAppearanceId).ToList();
+            if (activeIds.Count == 0)
+            {
+                activeIds.AddRange(new[] { "AccessoryOneId", "AccessoryTwoId", "AccessoryThreeId" }
+                    .Select(name => GetMemberString(outfit, name) ?? string.Empty)
+                    .Where(IsAppearanceId));
+            }
+
+            foreach (string id in activeIds.Distinct(StringComparer.OrdinalIgnoreCase))
+                pieces.Add(new RemovableFashionSensePiece(id, GetAppearanceLabel(models, id), false));
+        }
+        catch (Exception ex)
+        {
+            _monitor.Log($"Could not inspect Fashion Sense outfit '{outfitName}': {ex}", LogLevel.Warn);
+        }
+
+        return pieces;
+    }
+
+    /// <summary>Temporarily hide selected pieces from the equipped outfit, leaving its saved preset untouched.</summary>
+    public bool ApplyIndoorAdjustment(IndoorOutfitAdjustment adjustment)
+    {
+        if (!adjustment.HasItems)
+            return true;
+
+        try
+        {
+            if (Game1.player.modData.TryGetValue("FashionSense.CustomHat.Id", out string? hatId)
+                && hatId.Equals(adjustment.HatId, StringComparison.OrdinalIgnoreCase))
+                Game1.player.modData["FashionSense.CustomHat.Id"] = "None";
+
+            HashSet<string> hiddenAccessories = new(adjustment.AccessoryIds, StringComparer.OrdinalIgnoreCase);
+            if (hiddenAccessories.Count > 0)
+            {
+                Type? fsType = FindType("FashionSense.FashionSense");
+                object? accessoryManager = fsType is null ? null : GetStaticField(fsType, "accessoryManager");
+                if (accessoryManager is null)
+                    return false;
+
+                for (int index = 0; index < 100; index++)
+                {
+                    string key = $"FashionSense.CustomAccessory.{index}.Id";
+                    if (Game1.player.modData.TryGetValue(key, out string? accessoryId)
+                        && hiddenAccessories.Contains(accessoryId)
+                        && !TryInvokeExactCompatibleMethod(accessoryManager, "RemoveAccessory", out _, Game1.player, index))
+                        return false;
+                }
+            }
+
+            MarkSpriteDirty();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _monitor.Log($"Could not apply indoor Fashion Sense adjustments: {ex}", LogLevel.Warn);
+            return false;
+        }
+    }
+
+    private static bool IsAppearanceId(string? id)
+        => !string.IsNullOrWhiteSpace(id) && !id.Equals("None", StringComparison.OrdinalIgnoreCase);
+
+    private static string GetAppearanceLabel(IDictionary? models, string id)
+    {
+        object? model = models?.Contains(id) == true ? models[id] : null;
+        string name = model is null ? id : GetMemberString(model, "Name") ?? id;
+        string pack = model is null ? string.Empty : GetMemberString(model, "PackName") ?? string.Empty;
+        return string.IsNullOrWhiteSpace(pack) ? name : $"{name} ({pack})";
     }
 
     /// <summary>Rename a saved Fashion Sense outfit.</summary>

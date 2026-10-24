@@ -12,16 +12,22 @@ internal sealed class ScheduleEvaluator
     private const string FinishedFestivalDayKey = "FashionSenseWardrobeManager.FinishedActiveFestivalDay";
     private readonly ScheduleManager _manager;
     private readonly TagManager _tagManager;
+    private readonly IndoorOutfitAdjustmentManager _indoorAdjustments;
     private readonly OutfitPreviewRenderer _renderer;
     private readonly IMonitor _monitor;
     private readonly Random _random = new();
     private string? _managedRuleId;
     private string? _managedOutfitName;
+    private string? _managedBaseOutfitName;
+    private string? _managedDayKey;
+    private string? _appliedIndoorAdjustmentKey;
 
-    public ScheduleEvaluator(ScheduleManager manager, TagManager tagManager, OutfitPreviewRenderer renderer, IMonitor monitor)
+    public ScheduleEvaluator(ScheduleManager manager, TagManager tagManager, IndoorOutfitAdjustmentManager indoorAdjustments,
+        OutfitPreviewRenderer renderer, IMonitor monitor)
     {
         _manager = manager;
         _tagManager = tagManager;
+        _indoorAdjustments = indoorAdjustments;
         _renderer = renderer;
         _monitor = monitor;
     }
@@ -34,7 +40,20 @@ internal sealed class ScheduleEvaluator
         List<OutfitScheduleRule> rules = _manager.LoadRules();
         OutfitScheduleRule? selectedRule = FindWinningRule(rules, exactTimeTrigger);
         if (selectedRule is null)
+        {
+            string? activeAdjustment = _indoorAdjustments.GetActiveOutfit();
+            if (activeAdjustment is not null)
+            {
+                if (activeAdjustment.Equals(GetCurrentOutfitName(), StringComparison.OrdinalIgnoreCase))
+                {
+                    if (!_renderer.EquipOutfitImmediately(activeAdjustment))
+                        return false;
+                }
+                _indoorAdjustments.SetActiveOutfit(null);
+            }
+            ResetTracking();
             return true;
+        }
 
         HashSet<string> selectedOutfits = new(selectedRule.OutfitNames, StringComparer.OrdinalIgnoreCase);
         if (selectedRule.TagIds.Count > 0)
@@ -48,6 +67,8 @@ internal sealed class ScheduleEvaluator
             .Where(_renderer.OutfitExists)
             .ToList();
 
+        HashSet<string> availableNames = new(available, StringComparer.OrdinalIgnoreCase);
+
         if (available.Count == 0)
             return false;
 
@@ -56,18 +77,29 @@ internal sealed class ScheduleEvaluator
             && selectedRule.LockedDayKey.Equals(currentDayKey, StringComparison.Ordinal)
             ? available.FirstOrDefault(name => name.Equals(selectedRule.LockedOutfitName, StringComparison.OrdinalIgnoreCase))
             : null;
+        string? currentAdjustedBase = selectedRule.ChangeFrequency == ScheduleChangeFrequency.EveryActivation
+            && _managedRuleId == selectedRule.Id && _managedDayKey == currentDayKey
+            && _managedBaseOutfitName is not null
+            && available.Contains(_managedBaseOutfitName, StringComparer.OrdinalIgnoreCase)
+            && _indoorAdjustments.Get(_managedBaseOutfitName).HasItems
+            ? _managedBaseOutfitName
+            : null;
 
-        string outfitName;
+        string baseOutfitName;
         bool newDailySelection = lockedOutfit is null
             && selectedRule.ChangeFrequency == ScheduleChangeFrequency.OncePerDay;
         bool selectionStateChanged = false;
         if (lockedOutfit is not null)
         {
-            outfitName = lockedOutfit;
+            baseOutfitName = lockedOutfit;
+        }
+        else if (currentAdjustedBase is not null)
+        {
+            baseOutfitName = currentAdjustedBase;
         }
         else
         {
-            HashSet<string> availableNames = new(available, StringComparer.OrdinalIgnoreCase);
+            availableNames = new(available, StringComparer.OrdinalIgnoreCase);
             int removed = selectedRule.UsedOutfitNames.RemoveAll(name => !availableNames.Contains(name));
             selectionStateChanged |= removed > 0;
 
@@ -96,30 +128,51 @@ internal sealed class ScheduleEvaluator
                     : available;
             }
 
-            outfitName = choices[_random.Next(choices.Count)];
+            baseOutfitName = choices[_random.Next(choices.Count)];
         }
 
+        IndoorOutfitAdjustment adjustment = _indoorAdjustments.Get(baseOutfitName);
+        bool hideIndoors = !Game1.player.currentLocation.IsOutdoors && adjustment.HasItems;
+        string? desiredAdjustmentKey = hideIndoors
+            ? $"{baseOutfitName}|{adjustment.HatId}|{string.Join("|", adjustment.AccessoryIds.OrderBy(id => id))}"
+            : null;
+        string? persistedActiveOutfit = _indoorAdjustments.GetActiveOutfit();
+        bool adjustmentChanged = !string.Equals(_appliedIndoorAdjustmentKey, desiredAdjustmentKey, StringComparison.Ordinal)
+            || !string.Equals(persistedActiveOutfit, hideIndoors ? baseOutfitName : null,
+                StringComparison.OrdinalIgnoreCase);
+
         bool alreadyEquipped = !_renderer.IsPreviewActive
-            && outfitName.Equals(GetCurrentOutfitName(), StringComparison.OrdinalIgnoreCase);
-        if (alreadyEquipped || _renderer.EquipOutfitImmediately(outfitName))
+            && baseOutfitName.Equals(GetCurrentOutfitName(), StringComparison.OrdinalIgnoreCase);
+        bool needsRefresh = adjustmentChanged
+            || (adjustment.HasItems && _managedRuleId != selectedRule.Id);
+        bool didEquip = !alreadyEquipped || needsRefresh;
+        if (!didEquip || _renderer.EquipOutfitImmediately(baseOutfitName))
         {
+            if (didEquip && hideIndoors && !_renderer.ApplyIndoorAdjustment(adjustment))
+                return false;
+
+            if (didEquip || adjustmentChanged)
+                _indoorAdjustments.SetActiveOutfit(hideIndoors ? baseOutfitName : null);
+            _appliedIndoorAdjustmentKey = desiredAdjustmentKey;
             _managedRuleId = selectedRule.Id;
-            _managedOutfitName = outfitName;
-            if (!selectedRule.UsedOutfitNames.Contains(outfitName, StringComparer.OrdinalIgnoreCase))
+            _managedOutfitName = baseOutfitName;
+            _managedBaseOutfitName = baseOutfitName;
+            _managedDayKey = currentDayKey;
+            if (!selectedRule.UsedOutfitNames.Contains(baseOutfitName, StringComparer.OrdinalIgnoreCase))
             {
-                selectedRule.UsedOutfitNames.Add(outfitName);
+                selectedRule.UsedOutfitNames.Add(baseOutfitName);
                 selectionStateChanged = true;
             }
 
-            if (!selectedRule.LastOutfitName.Equals(outfitName, StringComparison.OrdinalIgnoreCase))
+            if (!selectedRule.LastOutfitName.Equals(baseOutfitName, StringComparison.OrdinalIgnoreCase))
             {
-                selectedRule.LastOutfitName = outfitName;
+                selectedRule.LastOutfitName = baseOutfitName;
                 selectionStateChanged = true;
             }
 
             if (newDailySelection)
             {
-                selectedRule.LockedOutfitName = outfitName;
+                selectedRule.LockedOutfitName = baseOutfitName;
                 selectedRule.LockedDayKey = currentDayKey;
                 selectionStateChanged = true;
             }
@@ -134,8 +187,8 @@ internal sealed class ScheduleEvaluator
 
             if (selectionStateChanged)
                 _manager.SaveRules(rules);
-            if (!alreadyEquipped)
-                _monitor.Log($"Schedule equipped Fashion Sense outfit '{outfitName}'.", LogLevel.Trace);
+            if (didEquip)
+                _monitor.Log($"Schedule equipped Fashion Sense outfit '{baseOutfitName}'.", LogLevel.Trace);
             return true;
         }
 
@@ -146,6 +199,9 @@ internal sealed class ScheduleEvaluator
     {
         _managedRuleId = null;
         _managedOutfitName = null;
+        _managedBaseOutfitName = null;
+        _managedDayKey = null;
+        _appliedIndoorAdjustmentKey = null;
     }
 
     public void MarkActiveFestivalFinished()
