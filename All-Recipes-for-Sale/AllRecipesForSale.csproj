@@ -17,6 +17,7 @@
 
   <ItemGroup>
     <None Update="manifest.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="LICENSE" CopyToOutputDirectory="PreserveNewest" />
     <None Update="i18n\*.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 

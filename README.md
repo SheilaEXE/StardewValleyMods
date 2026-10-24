@@ -2,6 +2,8 @@
 
 Source code for my Stardew Valley mods, organized with one folder per mod.
 
+The current versions of my original code and content in each folder are licensed under the GNU GPL v3.0 only. See that mod's `LICENSE` file and the [licensing notes](LICENSING.md) for scope and exceptions.
+
 | Mod | Source folder | Latest available download |
 | --- | --- | --- |
 | All Recipes for Sale! | [All-Recipes-for-Sale](All-Recipes-for-Sale/) | No GitHub release yet |

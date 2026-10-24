@@ -85,6 +85,8 @@ try {
 
     Copy-Item -LiteralPath (Join-Path $repoRoot 'bin\Release\net6.0\LotsOfKisses.dll') -Destination $packageRoot
     Copy-Item -LiteralPath (Join-Path $repoRoot 'manifest.json') -Destination $packageRoot
+    Copy-Item -LiteralPath (Join-Path $repoRoot 'LICENSE') -Destination $packageRoot
+    Copy-Item -LiteralPath (Join-Path $repoRoot 'THIRD_PARTY_NOTICES.md') -Destination $packageRoot
     Copy-Item -Path (Join-Path $repoRoot 'assets\*') -Destination (Join-Path $packageRoot 'assets') -Recurse
     Copy-Item -Path (Join-Path $repoRoot 'i18n\*') -Destination (Join-Path $packageRoot 'i18n') -Recurse
 

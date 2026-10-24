@@ -95,3 +95,7 @@ Use the NPC's exact internal name in NPC-specific keys. The main supported patte
 ### Note
 
 NPCs without a content pack still work fully — kisses happen normally, just without custom dialogue.
+
+## License
+
+My original code, dialogue, and artwork in this project are licensed under the [GNU GPL v3.0 only](LICENSE). The bundled `assets/sounds/hug.wav` came from a third-party free-sound site and is **not** licensed under the GPL by me; see [third-party notices](THIRD_PARTY_NOTICES.md). Independently authored content packs belong to their respective creators and are not covered by this repository's license.

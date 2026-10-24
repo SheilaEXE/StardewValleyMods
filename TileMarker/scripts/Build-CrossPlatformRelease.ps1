@@ -84,6 +84,7 @@ try {
 
     Copy-Item -LiteralPath (Join-Path $repoRoot 'bin\Release\net6.0\TileMarker.dll') -Destination $packageRoot
     Copy-Item -LiteralPath (Join-Path $repoRoot 'manifest.json') -Destination $packageRoot
+    Copy-Item -LiteralPath (Join-Path $repoRoot 'LICENSE') -Destination $packageRoot
     Copy-Item -Path (Join-Path $repoRoot 'i18n\*') -Destination (Join-Path $packageRoot 'i18n') -Recurse
 
     if (Test-Path -LiteralPath $archivePath) {

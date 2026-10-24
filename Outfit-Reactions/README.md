@@ -53,4 +53,4 @@ Other custom NPC mods are intentionally not supported. Many mod authors do not w
 
 ## 📜 License
 
-This project is licensed under the [MIT License](LICENSE). You are free to use, modify, and distribute it as long as the original credits are preserved.
+My original code and content in this project are licensed under the [GNU GPL v3.0 only](LICENSE). You may use, modify, and redistribute them under its terms, including the source-code and notice requirements when distributing modified versions.
