@@ -95,7 +95,3 @@ Use the NPC's exact internal name in NPC-specific keys. The main supported patte
 ### Note
 
 NPCs without a content pack still work fully — kisses happen normally, just without custom dialogue.
-
-## License
-
-My original code, dialogue, and artwork in this project are licensed under the [GNU GPL v3.0 only](LICENSE).
