@@ -70,6 +70,18 @@ internal sealed class ModEntry : Mod
             }
 
             Dictionary<string, string> recipes = Game1.content.Load<Dictionary<string, string>>(CookingRecipesAsset);
+            List<RecipeSaleData> recipeEntries = new();
+            foreach ((string recipeName, string rawData) in recipes)
+            {
+                if (TryParseRecipeSaleData(recipeName, rawData, out RecipeSaleData recipe))
+                    recipeEntries.Add(recipe);
+                else
+                    this.Monitor.Log($"Skipped cooking recipe '{recipeName}' because its output item couldn't be parsed.", LogLevel.Warn);
+            }
+
+            Dictionary<string, List<RecipeSaleData>> recipesByOutput = recipeEntries
+                .GroupBy(recipe => NormalizeObjectId(recipe.OutputItemId), StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(group => group.Key, group => group.ToList(), StringComparer.OrdinalIgnoreCase);
             HashSet<string> coveredRecipes = new(StringComparer.Ordinal);
             int updated = 0;
             int duplicatesRemoved = 0;
@@ -77,30 +89,31 @@ internal sealed class ModEntry : Mod
             for (int index = 0; index < saloon.Items.Count; index++)
             {
                 ShopItemData item = saloon.Items[index];
-                if (!item.IsRecipe || item.ItemId is null || !recipes.ContainsKey(item.ItemId))
+                if (!item.IsRecipe || !TryMatchExistingRecipe(item, recipes, recipesByOutput, coveredRecipes, out RecipeSaleData recipe))
                     continue;
 
-                if (!coveredRecipes.Add(item.ItemId))
+                if (!coveredRecipes.Add(recipe.RecipeName))
                 {
                     saloon.Items.RemoveAt(index--);
                     duplicatesRemoved++;
                     continue;
                 }
 
-                this.NormalizeRecipeEntry(item);
+                this.NormalizeRecipeEntry(item, recipe);
                 updated++;
             }
 
             int added = 0;
-            foreach (string recipeName in recipes.Keys.OrderBy(name => name, StringComparer.Ordinal))
+            foreach (RecipeSaleData recipe in recipeEntries.OrderBy(entry => entry.RecipeName, StringComparer.Ordinal))
             {
-                if (!coveredRecipes.Add(recipeName))
+                if (!coveredRecipes.Add(recipe.RecipeName))
                     continue;
 
                 saloon.Items.Add(new ShopItemData
                 {
-                    Id = EntryIdPrefix + recipeName,
-                    ItemId = recipeName,
+                    Id = EntryIdPrefix + recipe.RecipeName,
+                    ItemId = QualifyObjectId(recipe.OutputItemId),
+                    ObjectInternalName = recipe.RecipeName,
                     IsRecipe = true,
                     Price = this.Config.RecipePrice,
                     ApplyProfitMargins = false,
@@ -118,8 +131,10 @@ internal sealed class ModEntry : Mod
         }, AssetEditPriority.Late);
     }
 
-    private void NormalizeRecipeEntry(ShopItemData item)
+    private void NormalizeRecipeEntry(ShopItemData item, RecipeSaleData recipe)
     {
+        item.ItemId = QualifyObjectId(recipe.OutputItemId);
+        item.ObjectInternalName = recipe.RecipeName;
         item.Condition = null;
         item.Price = this.Config.RecipePrice;
         item.ApplyProfitMargins = false;
@@ -129,9 +144,71 @@ internal sealed class ModEntry : Mod
         item.AvailableStockModifiers = null;
     }
 
+    private static bool TryMatchExistingRecipe(
+        ShopItemData item,
+        IReadOnlyDictionary<string, string> recipes,
+        IReadOnlyDictionary<string, List<RecipeSaleData>> recipesByOutput,
+        ISet<string> coveredRecipes,
+        out RecipeSaleData recipe
+    )
+    {
+        recipe = null!;
+
+        if (!string.IsNullOrWhiteSpace(item.ObjectInternalName)
+            && recipes.TryGetValue(item.ObjectInternalName, out string? namedRawData)
+            && TryParseRecipeSaleData(item.ObjectInternalName, namedRawData, out recipe))
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrWhiteSpace(item.ItemId)
+            && recipes.TryGetValue(item.ItemId, out string? legacyRawData)
+            && TryParseRecipeSaleData(item.ItemId, legacyRawData, out recipe))
+        {
+            return true;
+        }
+
+        if (string.IsNullOrWhiteSpace(item.ItemId)
+            || !recipesByOutput.TryGetValue(NormalizeObjectId(item.ItemId), out List<RecipeSaleData>? matches))
+        {
+            return false;
+        }
+
+        recipe = matches.FirstOrDefault(match => !coveredRecipes.Contains(match.RecipeName)) ?? matches[0];
+        return true;
+    }
+
+    private static bool TryParseRecipeSaleData(string recipeName, string rawData, out RecipeSaleData recipe)
+    {
+        recipe = null!;
+        string[] fields = rawData.Split('/');
+        if (fields.Length <= CraftingRecipe.index_output)
+            return false;
+
+        string[] outputParts = fields[CraftingRecipe.index_output]
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (outputParts.Length == 0 || string.IsNullOrWhiteSpace(outputParts[0]))
+            return false;
+
+        recipe = new RecipeSaleData(recipeName, outputParts[0]);
+        return true;
+    }
+
+    private static string QualifyObjectId(string itemId)
+    {
+        return itemId.StartsWith('(') ? itemId : $"(O){itemId}";
+    }
+
+    private static string NormalizeObjectId(string itemId)
+    {
+        return itemId.StartsWith("(O)", StringComparison.OrdinalIgnoreCase) ? itemId[3..] : itemId;
+    }
+
     private void OnAssetsInvalidated(object? sender, AssetsInvalidatedEventArgs e)
     {
         if (e.NamesWithoutLocale.Any(name => name.IsEquivalentTo(CookingRecipesAsset)))
             this.Helper.GameContent.InvalidateCache(ShopsAsset);
     }
+
+    private sealed record RecipeSaleData(string RecipeName, string OutputItemId);
 }

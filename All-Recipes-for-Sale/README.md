@@ -3,6 +3,7 @@
 Adds every cooking recipe from `Data/CookingRecipes` to Gus's Saloon shop. Recipes already known by the current player are hidden by Stardew Valley's native recipe-shop behavior.
 
 This includes recipes added by compatible mods, such as Content Patcher packs that edit `Data/CookingRecipes`.
+The shop entries use each recipe's actual output item ID, so custom recipes display their correct names and icons.
 
 If Generic Mod Config Menu is installed, the mod can be enabled or disabled through its in-game settings. After changing this option, close and reopen Gus's shop.
 
