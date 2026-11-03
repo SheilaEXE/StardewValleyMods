@@ -54,7 +54,7 @@ internal enum ScheduleChangeFrequency
 
 internal sealed class ScheduleTimeWindow
 {
-    public int Start { get; set; } = 2200;
+    public int Start { get; set; } = 600;
     // Null keeps the rule active until the end of the in-game day.
     public int? End { get; set; }
 }

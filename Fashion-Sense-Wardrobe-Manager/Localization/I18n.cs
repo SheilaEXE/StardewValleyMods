@@ -58,6 +58,33 @@ internal static class I18n
     public static string CosmeticShoesAutomaticTooltip => Get("ui.cosmetic_shoes.automatic_tooltip");
     public static string ButtonCpShoes => Get("ui.button.cp_shoes");
     public static string ButtonFashionSenseShoes => Get("ui.button.fs_shoes");
+    public static string ButtonSweetFarmerSleeves => Get("ui.button.sf_sleeves");
+    public static string ButtonPeachBody => Get("ui.button.peach_body");
+    public static string PeachBodyTooltip => Get("ui.tooltip.peach_body");
+    public static string PeachBodyTitle => Get("ui.peach.title");
+    public static string PeachSleevesTitle => Get("ui.peach.sleeves_title");
+    public static string PeachShoesTitle => Get("ui.peach.shoes_title");
+    public static string PeachNoAssignment => Get("ui.peach.no_assignment");
+    public static string PeachValue(bool shoes, string code)
+        => Get("ui.peach." + (shoes ? "shoes." : "sleeves.") + code);
+    public static string ButtonElegantFarmer => Get("ui.button.elegant_farmer");
+    public static string ElegantFarmerTooltip => Get("ui.tooltip.elegant_farmer");
+    public static string ElegantFarmerTitle => Get("ui.elegant.title");
+    public static string ElegantSleevesTitle => Get("ui.elegant.sleeves_title");
+    public static string ElegantShoesTitle => Get("ui.elegant.shoes_title");
+    public static string ElegantNoAssignment => Get("ui.elegant.no_assignment");
+    public static string ElegantValue(bool shoes, string code)
+        => Get("ui.elegant." + (shoes ? "shoes." : "sleeves.") + code.Replace(' ', '_'));
+    public static string SweetFarmerSleevesTooltip => Get("ui.tooltip.sf_sleeves");
+    public static string SweetFarmerSleevesTitle => Get("ui.sf_sleeves.title");
+    public static string SweetFarmerTitle => Get("ui.sf.title");
+    public static string SweetFarmerSocksTitle => Get("ui.sf_socks.title");
+    public static string SweetFarmerShoesTitle => Get("ui.sf_shoes.title");
+    public static string SweetFarmerNoAssignment => Get("ui.sf.no_assignment");
+    public static string SweetFarmerValue(string part, string value)
+        => Get("ui.sf_" + part.ToLowerInvariant() + "." + value.ToLowerInvariant().Replace(' ', '_'));
+    public static string SleevesNoAssignment => Get("ui.sf_sleeves.no_assignment");
+    public static string SleeveValue(string value) => Get("ui.sf_sleeves." + value.ToLowerInvariant().Replace(' ', '_'));
     public static string FashionSenseShoesTitle => Get("ui.fs_shoes.title");
     public static string FashionSenseShoesNone => Get("ui.fs_shoes.none");
     public static string ErrorSaveFootwearFailed => Get("ui.error.save_footwear_failed");
@@ -191,6 +218,7 @@ internal static class I18n
     public static string ScheduleSelectWeather => Get("ui.schedule.select_weather");
     public static string ScheduleSelectLocations => Get("ui.schedule.select_locations");
     public static string ScheduleSelectedCount(int count) => Get("ui.schedule.selected_count", new { count });
+    public static string ScheduleOnlySelected => Get("ui.schedule.only_selected");
     public static string ScheduleWeatherAcidRain => Get("ui.schedule.weather.acid_rain");
     public static string ScheduleWeatherBlizzard => Get("ui.schedule.weather.blizzard");
     public static string ScheduleWeatherCloudy => Get("ui.schedule.weather.cloudy");

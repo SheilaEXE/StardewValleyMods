@@ -26,11 +26,15 @@ internal sealed class OutfitPreviewRenderer
 
     private readonly IMonitor _monitor;
     private readonly CosmeticShoeManager _cosmeticShoeManager;
+    private readonly SweetFarmerSleeveManager _sweetFarmer;
 
     private Dictionary<string, string>? _snapshot;
     private string? _snapshotShoeColor;
     private readonly Dictionary<string, string> _renamePreviewAliases = new(StringComparer.OrdinalIgnoreCase);
     private string? _activeOutfitName;
+    private string? _autoSweetFarmerShoeOutfit;
+    private string? _autoSweetFarmerShoeId;
+    private string? _autoSweetFarmerShoeStyle;
 
     public bool IsPreviewActive => _activeOutfitName is not null;
     public string? ActiveOutfitName => _activeOutfitName;
@@ -50,10 +54,12 @@ internal sealed class OutfitPreviewRenderer
 
     // Constructor
 
-    public OutfitPreviewRenderer(IMonitor monitor, CosmeticShoeManager cosmeticShoeManager)
+    public OutfitPreviewRenderer(IMonitor monitor, CosmeticShoeManager cosmeticShoeManager,
+        SweetFarmerSleeveManager sweetFarmer)
     {
         _monitor = monitor;
         _cosmeticShoeManager = cosmeticShoeManager;
+        _sweetFarmer = sweetFarmer;
     }
 
     // Outfit apply / restore
@@ -85,6 +91,9 @@ internal sealed class OutfitPreviewRenderer
         _activeOutfitName = null;
         _snapshot         = null;
         _snapshotShoeColor = null;
+        _autoSweetFarmerShoeOutfit = null;
+        _autoSweetFarmerShoeId = null;
+        _autoSweetFarmerShoeStyle = null;
     }
 
     /// <summary>
@@ -420,6 +429,71 @@ internal sealed class OutfitPreviewRenderer
             ? id
             : null;
     }
+
+    /// <summary>Fill the empty shoe slot of a saved Sweet Farmer FS body without editing that outfit.</summary>
+    public void ApplyDefaultSweetFarmerShoeForCurrentOutfit(string? outfitName, string? previewStyle = null)
+    {
+        if (string.IsNullOrWhiteSpace(outfitName))
+            return;
+
+        string? current = GetCurrentFashionSenseShoeId();
+        bool ourShoe = string.Equals(_autoSweetFarmerShoeOutfit, outfitName, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(_autoSweetFarmerShoeId, current, StringComparison.OrdinalIgnoreCase);
+        if (HasSelectedFashionSenseShoe(current) && !ourShoe)
+            return;
+
+        string style = previewStyle ?? _sweetFarmer.GetEffectiveShoes(outfitName);
+        if (ourShoe && string.Equals(_autoSweetFarmerShoeStyle, style, StringComparison.Ordinal))
+            return;
+
+        object? manager = GetOutfitManager();
+        object? outfit = manager is null ? null : GetOutfit(manager, outfitName);
+        ApplyDefaultSweetFarmerShoe(outfit, outfitName, style);
+    }
+
+    private void ApplyDefaultSweetFarmerShoe(object? outfit, string outfitName, string? selectedStyle = null)
+    {
+        if (outfit is null || !_sweetFarmer.IsAvailable)
+            return;
+
+        string? bodyId = GetMemberString(outfit, "BodyId");
+        string? savedShoeId = GetMemberString(outfit, "ShoesId");
+        if (bodyId is null
+            || !bodyId.StartsWith("Heart.SweetFarmer.FS/", StringComparison.OrdinalIgnoreCase)
+            || HasSelectedFashionSenseShoe(savedShoeId))
+            return;
+
+        string style = selectedStyle ?? _sweetFarmer.GetEffectiveShoes(outfitName);
+        if (style == "Barefoot")
+        {
+            PreviewFashionSenseShoe(null);
+            _autoSweetFarmerShoeOutfit = outfitName;
+            _autoSweetFarmerShoeId = null;
+            _autoSweetFarmerShoeStyle = style;
+            return;
+        }
+
+        string? height = _sweetFarmer.GetConfiguredLegHeight();
+        if (string.IsNullOrWhiteSpace(height))
+            return;
+
+        string displayName = $"{height} - {style}";
+        FashionSenseShoeOption? matchingShoe = GetAvailableFashionSenseShoes().FirstOrDefault(option =>
+            option.Id.StartsWith("Heart.SweetFarmer.FS/Shoes/", StringComparison.OrdinalIgnoreCase)
+            && option.DisplayName.Equals(displayName, StringComparison.OrdinalIgnoreCase));
+        if (matchingShoe is not null)
+        {
+            PreviewFashionSenseShoe(matchingShoe.Id);
+            _autoSweetFarmerShoeOutfit = outfitName;
+            _autoSweetFarmerShoeId = matchingShoe.Id;
+            _autoSweetFarmerShoeStyle = style;
+        }
+    }
+
+    private static bool HasSelectedFashionSenseShoe(string? id)
+        => !string.IsNullOrWhiteSpace(id)
+            && !id.Equals("None", StringComparison.OrdinalIgnoreCase)
+            && !id.Equals("Override Shoe Color", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>Apply a Fashion Sense shoe for preview without changing any saved outfit.</summary>
     public void PreviewFashionSenseShoe(string? shoeId)
@@ -810,6 +884,10 @@ internal sealed class OutfitPreviewRenderer
             return false;
 
         InvokeExactCompatibleMethod(outfitManager, "SetOutfit", Game1.player, outfit);
+        _autoSweetFarmerShoeOutfit = null;
+        _autoSweetFarmerShoeId = null;
+        _autoSweetFarmerShoeStyle = null;
+        ApplyDefaultSweetFarmerShoe(outfit, outfitName);
         // Shoe color is player-wide. A saved outfit without a CP assignment must
         // not inherit the previous preview's shoe color.
         if (!_cosmeticShoeManager.ApplyForOutfit(outfitName))

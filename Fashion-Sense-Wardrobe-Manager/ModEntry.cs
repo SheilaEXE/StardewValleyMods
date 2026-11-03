@@ -43,6 +43,9 @@ internal sealed class ModEntry : Mod
     private ScheduleConditionCatalog _scheduleConditionCatalog = null!;
     private ScheduleEvaluator     _scheduleEvaluator = null!;
     private CosmeticShoeManager   _cosmeticShoeManager = null!;
+    private SweetFarmerSleeveManager _sleeveManager = null!;
+    private PeachBodyManager _peachBody = null!;
+    private ElegantFarmerBodyManager _elegantBody = null!;
     private IndoorOutfitAdjustmentManager _indoorAdjustments = null!;
     private ImmediateOutfitPersistence _immediateOutfits = null!;
     private OutfitPreviewRenderer _renderer        = null!;
@@ -79,9 +82,12 @@ internal sealed class ModEntry : Mod
         _organizationManager = new GlobalOrganizationManager(helper.Data, Monitor);
         _scheduleConditionCatalog = new ScheduleConditionCatalog(helper.ModRegistry);
         _cosmeticShoeManager = new CosmeticShoeManager(Monitor);
+        _sleeveManager = new SweetFarmerSleeveManager(helper, Monitor);
+        _peachBody = new PeachBodyManager(helper, Monitor);
+        _elegantBody = new ElegantFarmerBodyManager(helper, Monitor);
         _indoorAdjustments = new IndoorOutfitAdjustmentManager();
-        _immediateOutfits = new ImmediateOutfitPersistence(helper, Monitor, _cosmeticShoeManager);
-        _renderer = new OutfitPreviewRenderer(Monitor, _cosmeticShoeManager);
+        _immediateOutfits = new ImmediateOutfitPersistence(helper, Monitor, _cosmeticShoeManager, _sleeveManager, _peachBody, _elegantBody);
+        _renderer = new OutfitPreviewRenderer(Monitor, _cosmeticShoeManager, _sleeveManager);
         _scheduleEvaluator = new ScheduleEvaluator(_scheduleManager, _tagManager, _indoorAdjustments, _renderer, Monitor);
         I18n.Init(helper.Translation);
 
@@ -143,6 +149,18 @@ internal sealed class ModEntry : Mod
 
     private void OnMenuChanged(object? sender, MenuChangedEventArgs e)
     {
+        // Also restore the real sleeve if another mod closes the Wardrobe directly.
+        if (Context.IsWorldReady && e.OldMenu is ExpandedOutfitsMenu && e.NewMenu is not ExpandedOutfitsMenu)
+        {
+            string? currentOutfit = null;
+            if (!Game1.player.modData.TryGetValue("FashionSense.Outfit.CurrentId", out currentOutfit)
+                || string.IsNullOrWhiteSpace(currentOutfit))
+                Game1.player.modData.TryGetValue("FashionSense.CurrentOutfit", out currentOutfit);
+            _sleeveManager.EndPreview(currentOutfit);
+            _peachBody.EndPreview(currentOutfit);
+            _elegantBody.EndPreview(currentOutfit);
+        }
+
         // If the FS outfits menu closed, tear down quick-preview
         if (_quickPreviewOpen && !IsFashionSenseOutfitsMenu(e.NewMenu))
             CloseQuickPreview(restoreOriginal: true);
@@ -325,7 +343,7 @@ internal sealed class ModEntry : Mod
         List<string> outfitNames = GetAllOutfitNames(fashionSenseMenu);
 
         var expanded = new ExpandedOutfitsMenu(_categoryManager, _tagManager, _organizationManager,
-            _scheduleManager, _scheduleEvaluator, _scheduleConditionCatalog, _cosmeticShoeManager, _indoorAdjustments,
+            _scheduleManager, _scheduleEvaluator, _scheduleConditionCatalog, _cosmeticShoeManager, _sleeveManager, _peachBody, _elegantBody, _indoorAdjustments,
             _immediateOutfits, _renderer, outfitNames, fashionSenseMenu,
             Path.Combine(Helper.DirectoryPath, "Exports"));
         Game1.activeClickableMenu = expanded;
@@ -337,6 +355,9 @@ internal sealed class ModEntry : Mod
 
     private void OnSaveLoaded(object? sender, SaveLoadedEventArgs e)
     {
+        _sleeveManager.Reset();
+        _peachBody.Reset();
+        _elegantBody.Reset();
         _immediateOutfits.OnSaveLoaded();
         _wasAtActiveFestival = false;
         _scheduleEvaluator.ResetTracking();
@@ -401,7 +422,11 @@ internal sealed class ModEntry : Mod
         if (!string.IsNullOrWhiteSpace(outfitName))
         {
             _cosmeticShoeManager.ApplyForOutfit(outfitName);
+            _renderer.ApplyDefaultSweetFarmerShoeForCurrentOutfit(outfitName);
         }
+        _sleeveManager.SyncCurrentOutfit(outfitName);
+        _peachBody.SyncCurrentOutfit(outfitName);
+        _elegantBody.SyncCurrentOutfit(outfitName);
     }
 
     private void QueueScheduleEvaluation()

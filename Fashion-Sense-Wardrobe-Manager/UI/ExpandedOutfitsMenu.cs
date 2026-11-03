@@ -68,6 +68,9 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
     private readonly GlobalOrganizationManager _organizationManager;
     private readonly SchedulePanel         _schedulePanel;
     private readonly CosmeticShoeManager   _cosmeticShoeManager;
+    private readonly SweetFarmerSleeveManager _sleeveManager;
+    private readonly PeachBodyManager _peachBody;
+    private readonly ElegantFarmerBodyManager _elegantBody;
     private readonly IndoorOutfitAdjustmentManager _indoorAdjustments;
     private readonly ImmediateOutfitPersistence _immediateOutfits;
     private readonly OutfitPreviewRenderer _renderer;
@@ -224,6 +227,8 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
     // Advanced filter panel
     private readonly AdvancedFilterPanel _advancedPanel = new();
     private bool _scheduleOutfitSelectionMode;
+    private bool _scheduleShowSelectedOnly;
+    private bool _scheduleViewDropdownOpen;
     private string? _scheduleSelectionRuleId;
     private HashSet<string> _scheduleSelectedOutfits = new(StringComparer.OrdinalIgnoreCase);
     private HashSet<string> _scheduleSelectedTagIds = new(StringComparer.OrdinalIgnoreCase);
@@ -240,6 +245,7 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
     private Rectangle _equipButton;
     private Rectangle _cosmeticShoeButton;
     private Rectangle _fashionSenseShoeButton;
+    private Rectangle _sleeveButton;
     private Rectangle _saveFootwearButton;
     private Rectangle _createCategoryButton;   // kept as alias → _createButton
 
@@ -274,6 +280,24 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
 
     // Cosmetic shoe picker
     private bool _shoePickerOpen;
+    private bool _sleevePickerOpen;
+    private bool _sweetFarmerCategoryOpen;
+    private bool _peachCategoryOpen;
+    private bool _peachPickerOpen;
+    private bool _peachShoesPart;
+    private int _peachPickerScroll;
+    private string? _pendingPeachSleeve;
+    private string? _pendingPeachShoes;
+    private bool _peachSleeveEditing;
+    private bool _peachShoesEditing;
+    private enum SweetFarmerPart { Sleeves, Socks, Shoes }
+    private SweetFarmerPart _sweetFarmerPart;
+    private string? _pendingSleeve;
+    private bool _sleeveEditing;
+    private string? _pendingSocks;
+    private string? _pendingShoes;
+    private bool _socksEditing;
+    private bool _shoesEditing;
     private int _shoePickerScroll;
     private List<Boots> _shoeOptions = new();
     private bool _fashionSenseShoePickerOpen;
@@ -297,6 +321,9 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
         ScheduleEvaluator     scheduleEvaluator,
         ScheduleConditionCatalog scheduleConditionCatalog,
         CosmeticShoeManager cosmeticShoeManager,
+        SweetFarmerSleeveManager sleeveManager,
+        PeachBodyManager peachBody,
+        ElegantFarmerBodyManager elegantBody,
         IndoorOutfitAdjustmentManager indoorAdjustments,
         ImmediateOutfitPersistence immediateOutfits,
         OutfitPreviewRenderer renderer,
@@ -314,6 +341,9 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
         _tagManager      = tagManager;
         _organizationManager = organizationManager;
         _cosmeticShoeManager = cosmeticShoeManager;
+        _sleeveManager = sleeveManager;
+        _peachBody = peachBody;
+        _elegantBody = elegantBody;
         _indoorAdjustments = indoorAdjustments;
         _immediateOutfits = immediateOutfits;
         _renderer        = renderer;
@@ -327,6 +357,11 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
         _schedulePanel = new SchedulePanel(scheduleManager, scheduleEvaluator, scheduleConditionCatalog, _tags);
 
         _selectedOutfit = GetCurrentOutfitName();
+        if (_selectedOutfit is not null)
+        {
+            PreviewSweetFarmerStyle();
+            PreviewPeachStyle();
+        }
 
         _advancedPanel.SetData(_categories, _tags);
 
@@ -389,6 +424,8 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
 
     private void SelectCategoryFilter(string categoryId)
     {
+        _scheduleShowSelectedOnly = false;
+        _scheduleViewDropdownOpen = false;
         _selectedCategoryId = categoryId;
         _selectedTagId = null;
         _dropdownOpen = false;
@@ -406,6 +443,8 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
 
     private void SelectTagFilter(string tagId)
     {
+        _scheduleShowSelectedOnly = false;
+        _scheduleViewDropdownOpen = false;
         _selectedCategoryId = "all";
         _selectedTagId = tagId;
         _dropdownOpen = false;
@@ -501,6 +540,14 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
             DrawIndoorAdjustmentModal(b);
         else if (_shoePickerOpen)
             DrawShoePicker(b);
+        else if (_sweetFarmerCategoryOpen)
+            DrawSweetFarmerCategory(b);
+        else if (_sleevePickerOpen)
+            DrawSleevePicker(b);
+        else if (_peachCategoryOpen)
+            DrawPeachCategory(b);
+        else if (_peachPickerOpen)
+            DrawPeachPicker(b);
         else if (_fashionSenseShoePickerOpen)
             DrawFashionSenseShoePicker(b);
         else if (_saveAppearanceChoiceOpen)
@@ -520,6 +567,30 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
         if (_shoePickerOpen)
         {
             HandleShoePickerClick(x, y);
+            return;
+        }
+
+        if (_sweetFarmerCategoryOpen)
+        {
+            HandleSweetFarmerCategoryClick(x, y);
+            return;
+        }
+
+        if (_sleevePickerOpen)
+        {
+            HandleSleevePickerClick(x, y);
+            return;
+        }
+
+        if (_peachCategoryOpen)
+        {
+            HandlePeachCategoryClick(x, y);
+            return;
+        }
+
+        if (_peachPickerOpen)
+        {
+            HandlePeachPickerClick(x, y);
             return;
         }
 
@@ -678,6 +749,41 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
             if (HandleDropdownScrollbarPress(x, y))
                 return;
 
+            if (_scheduleViewDropdownOpen)
+            {
+                var allTab = _categoryTabs.FirstOrDefault(tab => tab.Id == "all");
+                if (allTab != default)
+                {
+                    if (allTab.Bounds.Contains(x, y))
+                    {
+                        _scheduleViewDropdownOpen = false;
+                        Game1.playSound("smallSelect");
+                        return;
+                    }
+
+                    DropdownLayout layout = GetDropdownLayout(allTab.Bounds, 2, 240, 0);
+                    for (int row = 0; row < 2; row++)
+                    {
+                        Rectangle itemRect = new(layout.ItemsBounds.X,
+                            layout.ItemsBounds.Y + row * CategoryBarH,
+                            layout.ItemsBounds.Width, CategoryBarH);
+                        if (!itemRect.Contains(x, y))
+                            continue;
+
+                        _scheduleShowSelectedOnly = row == 1;
+                        _selectedCategoryId = "all";
+                        _selectedTagId = null;
+                        _scheduleViewDropdownOpen = false;
+                        _scrollOffset = 0;
+                        RebuildVisibleOutfits();
+                        RebuildCategoryTabs();
+                        Game1.playSound("smallSelect");
+                        return;
+                    }
+                }
+                _scheduleViewDropdownOpen = false;
+            }
+
             // If dropdown is open, check for item clicks first
             if (_dropdownOpen)
             {
@@ -830,6 +936,16 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
                     return;
                 }
 
+                if (id == "all" && _scheduleOutfitSelectionMode)
+                {
+                    _scheduleViewDropdownOpen = !_scheduleViewDropdownOpen;
+                    _dropdownOpen = false;
+                    _tagDropdownOpen = false;
+                    _colorDropdownOpen = false;
+                    Game1.playSound("smallSelect");
+                    return;
+                }
+
                 SelectCategoryFilter(id);
                 return;
             }
@@ -925,6 +1041,11 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
                 if (!_scheduleSelectedOutfits.Add(outfitName))
                     _scheduleSelectedOutfits.Remove(outfitName);
                 SelectOutfit(outfitName);
+                if (_scheduleShowSelectedOnly)
+                {
+                    RebuildVisibleOutfits();
+                    ScrollBy(0);
+                }
                 Game1.playSound("smallSelect");
                 return;
             }
@@ -1027,6 +1148,24 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
             return;
         }
 
+        if (_selectedOutfit is not null && _sleeveManager.IsAvailable
+            && !_deleteOutfitMode && !_scheduleOutfitSelectionMode
+            && _sleeveButton.Contains(x, y))
+        {
+            _sweetFarmerCategoryOpen = true;
+            Game1.playSound("bigSelect");
+            return;
+        }
+
+        if (_selectedOutfit is not null && (IsPeachMode || IsElegantMode)
+            && !_deleteOutfitMode && !_scheduleOutfitSelectionMode
+            && _sleeveButton.Contains(x, y))
+        {
+            _peachCategoryOpen = true;
+            Game1.playSound("bigSelect");
+            return;
+        }
+
         // Equip / Confirm button
         if (_equipButton.Contains(x, y))
         {
@@ -1061,6 +1200,8 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
     private void BeginScheduleOutfitSelection(OutfitScheduleRule rule)
     {
         _scheduleOutfitSelectionMode = true;
+        _scheduleShowSelectedOnly = false;
+        _scheduleViewDropdownOpen = false;
         _scheduleSelectionRuleId = rule.Id;
         _scheduleSelectedOutfits = new HashSet<string>(rule.OutfitNames, StringComparer.OrdinalIgnoreCase);
         _scheduleSelectedTagIds = new HashSet<string>(rule.TagIds, StringComparer.OrdinalIgnoreCase);
@@ -1098,6 +1239,8 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
             _renderer.RestoreOriginal();
 
         _scheduleOutfitSelectionMode = false;
+        _scheduleShowSelectedOnly = false;
+        _scheduleViewDropdownOpen = false;
         _scheduleSelectionRuleId = null;
         _scheduleSelectedOutfits.Clear();
         _scheduleSelectedTagIds.Clear();
@@ -1109,6 +1252,7 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
 
     private void CloseTransientControls()
     {
+        _scheduleViewDropdownOpen = false;
         _dropdownOpen = false;
         _tagDropdownOpen = false;
         _colorDropdownOpen = false;
@@ -1328,10 +1472,15 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
                 _indoorAdjustmentModalOpen = false;
                 Game1.playSound("smallSelect");
             }
-            else if (_shoePickerOpen || _fashionSenseShoePickerOpen || _saveAppearanceChoiceOpen)
+            else if (_shoePickerOpen || _fashionSenseShoePickerOpen || _sweetFarmerCategoryOpen || _sleevePickerOpen
+                || _peachCategoryOpen || _peachPickerOpen || _saveAppearanceChoiceOpen)
             {
                 _shoePickerOpen = false;
                 _fashionSenseShoePickerOpen = false;
+                _sweetFarmerCategoryOpen = false;
+                _sleevePickerOpen = false;
+                _peachCategoryOpen = false;
+                _peachPickerOpen = false;
                 _saveAppearanceChoiceOpen = false;
                 Game1.playSound("smallSelect");
             }
@@ -1441,6 +1590,12 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
             return;
         }
 
+        if (_peachPickerOpen)
+        {
+            _peachPickerScroll = Math.Clamp(_peachPickerScroll + (direction > 0 ? -1 : 1), 0, GetPeachPickerMaxScroll());
+            return;
+        }
+
 
         if (_fashionSenseShoePickerOpen)
         {
@@ -1534,6 +1689,10 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
             || (_schedulePanel.IsOpen && !_scheduleOutfitSelectionMode)
             || _shoePickerOpen
             || _fashionSenseShoePickerOpen
+            || _sleevePickerOpen
+            || _sweetFarmerCategoryOpen
+            || _peachCategoryOpen
+            || _peachPickerOpen
             || _saveAppearanceChoiceOpen;
 
         int hoveredIndex = gridUnavailable
@@ -1587,10 +1746,11 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
             bool isTagDropdown = id == "__tag_dropdown__";
             bool isColorDropdown = id == "__color_dropdown__";
             OutfitTag? selectedTag = SelectedTag;
-            bool active = (!isDropdown && !isTagDropdown && !isColorDropdown && id == _selectedCategoryId)
-                       || (isDropdown && _selectedCategoryId != "all")
-                       || (isTagDropdown && selectedTag?.Kind == TagKind.General)
-                       || (isColorDropdown && selectedTag?.Kind == TagKind.Color);
+            bool active = (id == "all" && _scheduleOutfitSelectionMode)
+                       || (id == "all" && _selectedCategoryId == "all" && _selectedTagId is null)
+                       || (isDropdown && !_scheduleShowSelectedOnly && _selectedCategoryId != "all")
+                       || (isTagDropdown && !_scheduleShowSelectedOnly && selectedTag?.Kind == TagKind.General)
+                       || (isColorDropdown && !_scheduleShowSelectedOnly && selectedTag?.Kind == TagKind.Color);
             bool hovered    = bounds.Contains(Game1.getMouseX(), Game1.getMouseY());
 
             Color tint = active      ? Color.SandyBrown
@@ -2131,6 +2291,9 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
     /// </summary>
     private void DrawDropdownOverlay(SpriteBatch b)
     {
+        if (_scheduleViewDropdownOpen)
+            DrawScheduleViewDropdownOverlay(b);
+
         if (_dropdownOpen)
             DrawCategoryDropdownOverlay(b);
 
@@ -2139,6 +2302,37 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
 
         if (_colorDropdownOpen)
             DrawTagDropdownOverlay(b, TagKind.Color, "__color_dropdown__");
+    }
+
+    private void DrawScheduleViewDropdownOverlay(SpriteBatch b)
+    {
+        var allTab = _categoryTabs.FirstOrDefault(tab => tab.Id == "all");
+        if (allTab == default)
+            return;
+
+        DropdownLayout layout = GetDropdownLayout(allTab.Bounds, 2, 240, 0);
+        b.Draw(Game1.staminaRect, layout.Bounds, Color.AntiqueWhite);
+        drawTextureBox(b, Game1.mouseCursors, new Rectangle(384, 396, 15, 15),
+            layout.Bounds.X, layout.Bounds.Y, layout.Bounds.Width, layout.Bounds.Height,
+            Color.White, 4f, drawShadow: true);
+
+        for (int row = 0; row < 2; row++)
+        {
+            Rectangle itemRect = new(layout.ItemsBounds.X,
+                layout.ItemsBounds.Y + row * CategoryBarH,
+                layout.ItemsBounds.Width, CategoryBarH);
+            bool active = _scheduleShowSelectedOnly == (row == 1);
+            if (active)
+                b.Draw(Game1.staminaRect, itemRect, Color.SandyBrown * 0.4f);
+            else if (itemRect.Contains(Game1.getMouseX(), Game1.getMouseY()))
+                b.Draw(Game1.staminaRect, itemRect, Color.Wheat * 0.4f);
+
+            string label = row == 0 ? I18n.ButtonAll : I18n.ScheduleOnlySelected;
+            Vector2 size = Game1.smallFont.MeasureString(label);
+            Utility.drawTextWithShadow(b, label, Game1.smallFont,
+                new Vector2(itemRect.X + 10, itemRect.Center.Y - size.Y / 2f),
+                active ? Color.SaddleBrown : Game1.textColor);
+        }
     }
 
     private void DrawCategoryDropdownOverlay(SpriteBatch b)
@@ -2503,6 +2697,16 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
             DrawCompactShoeButton(b, _cosmeticShoeButton, I18n.ButtonCpShoes, fashionSense: false);
             DrawCompactShoeButton(b, _fashionSenseShoeButton, I18n.ButtonFashionSenseShoes, fashionSense: true);
 
+            if (_sleeveManager.IsAvailable)
+                DrawMenuButton(b, _sleeveButton, I18n.ButtonSweetFarmerSleeves);
+            else if (IsPeachMode)
+                DrawMenuButton(b, _sleeveButton, I18n.ButtonPeachBody);
+            else if (IsElegantMode)
+                DrawMenuButton(b, _sleeveButton, I18n.ButtonElegantFarmer);
+        }
+
+        if (_selectedOutfit is not null && !_deleteOutfitMode && !_scheduleOutfitSelectionMode)
+        {
             bool saveHovered = _saveFootwearButton.Contains(Game1.getMouseX(), Game1.getMouseY());
             Color saveTint = saveHovered ? Color.PaleGreen : Color.White;
             drawTextureBox(b, Game1.mouseCursors, new Rectangle(432, 439, 9, 9),
@@ -2544,6 +2748,12 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
             drawHoverText(b, I18n.CpShoesTooltip, Game1.smallFont);
         else if (_fashionSenseShoeButton.Contains(Game1.getMouseX(), Game1.getMouseY()))
             drawHoverText(b, I18n.FashionSenseShoesTooltip, Game1.smallFont);
+        else if (_sleeveManager.IsAvailable && _sleeveButton.Contains(Game1.getMouseX(), Game1.getMouseY()))
+            drawHoverText(b, I18n.SweetFarmerSleevesTooltip, Game1.smallFont);
+        else if (IsPeachMode && _sleeveButton.Contains(Game1.getMouseX(), Game1.getMouseY()))
+            drawHoverText(b, I18n.PeachBodyTooltip, Game1.smallFont);
+        else if (IsElegantMode && _sleeveButton.Contains(Game1.getMouseX(), Game1.getMouseY()))
+            drawHoverText(b, I18n.ElegantFarmerTooltip, Game1.smallFont);
         else if (_saveFootwearButton.Contains(Game1.getMouseX(), Game1.getMouseY()))
             drawHoverText(b, I18n.SaveFootwearTooltip, Game1.smallFont);
     }
@@ -2875,6 +3085,310 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
     private static Rectangle GetShoePickerDownBounds(Rectangle modal)
         => new(modal.Right - 52, modal.Bottom - 58, 40, 40);
 
+    private static Rectangle GetSweetFarmerPickerBounds()
+        => new(Game1.uiViewport.Width / 2 - 410, Game1.uiViewport.Height / 2 - 295, 820, 590);
+
+    private static Rectangle GetSweetFarmerCellBounds(Rectangle modal, int index)
+    {
+        const int gap = 8;
+        const int cellHeight = 72;
+        int cellWidth = (modal.Width - 56 - gap) / 2;
+        return new Rectangle(modal.X + 28 + (index % 2) * (cellWidth + gap),
+            modal.Y + 112 + (index / 2) * (cellHeight + gap), cellWidth, cellHeight);
+    }
+
+    private static Rectangle GetSweetFarmerCategoryBounds()
+        => new(Game1.uiViewport.Width / 2 - 300, Game1.uiViewport.Height / 2 - 215, 600, 430);
+
+    private static Rectangle GetSweetFarmerCategoryOption(Rectangle modal, int index)
+        => new(modal.X + 52, modal.Y + 112 + index * 72, modal.Width - 104, 56);
+
+    private void DrawSweetFarmerCategory(SpriteBatch b)
+    {
+        b.Draw(Game1.fadeToBlackRect, Game1.graphics.GraphicsDevice.Viewport.Bounds, Color.Black * 0.55f);
+        Rectangle modal = GetSweetFarmerCategoryBounds();
+        drawTextureBox(b, Game1.mouseCursors, new Rectangle(384, 373, 18, 18),
+            modal.X, modal.Y, modal.Width, modal.Height, Color.White, 4f, drawShadow: true);
+        SpriteText.drawStringWithScrollCenteredAt(b, I18n.SweetFarmerTitle, modal.Center.X, modal.Y + 28);
+        DrawMenuButton(b, GetSweetFarmerCategoryOption(modal, 0), I18n.SweetFarmerSleevesTitle);
+        DrawMenuButton(b, GetSweetFarmerCategoryOption(modal, 1), I18n.SweetFarmerSocksTitle);
+        DrawMenuButton(b, GetSweetFarmerCategoryOption(modal, 2), I18n.SweetFarmerShoesTitle);
+        DrawMenuButton(b, GetShoePickerCloseBounds(modal), I18n.ButtonCancel);
+    }
+
+    private void HandleSweetFarmerCategoryClick(int x, int y)
+    {
+        Rectangle modal = GetSweetFarmerCategoryBounds();
+        for (int index = 0; index < 3; index++)
+        {
+            if (!GetSweetFarmerCategoryOption(modal, index).Contains(x, y))
+                continue;
+            _sweetFarmerPart = (SweetFarmerPart)index;
+            _sweetFarmerCategoryOpen = false;
+            _sleevePickerOpen = true;
+            if (_selectedOutfit is not null)
+            {
+                if (index == 0 && !_sleeveEditing)
+                    _pendingSleeve = _sleeveManager.Get(_selectedOutfit);
+                if (index == 1 && !_socksEditing)
+                    _pendingSocks = _sleeveManager.GetSocks(_selectedOutfit);
+                if (index == 2 && !_shoesEditing)
+                    _pendingShoes = _sleeveManager.GetEffectiveShoes(_selectedOutfit);
+            }
+            Game1.playSound("bigSelect");
+            return;
+        }
+        if (!modal.Contains(x, y) || GetShoePickerCloseBounds(modal).Contains(x, y))
+        {
+            _sweetFarmerCategoryOpen = false;
+            Game1.playSound("smallSelect");
+        }
+    }
+
+    private IReadOnlyList<string> GetSweetFarmerOptions()
+        => _sweetFarmerPart switch
+        {
+            SweetFarmerPart.Socks => _sleeveManager.SocksOptions,
+            SweetFarmerPart.Shoes => _sleeveManager.ShoesOptions,
+            _ => _sleeveManager.Options
+        };
+
+    private void DrawSleevePicker(SpriteBatch b)
+    {
+        b.Draw(Game1.fadeToBlackRect, Game1.graphics.GraphicsDevice.Viewport.Bounds, Color.Black * 0.55f);
+        Rectangle modal = GetSweetFarmerPickerBounds();
+        drawTextureBox(b, Game1.mouseCursors, new Rectangle(384, 373, 18, 18),
+            modal.X, modal.Y, modal.Width, modal.Height, Color.White, 4f, drawShadow: true);
+        string title = _sweetFarmerPart switch
+        {
+            SweetFarmerPart.Socks => I18n.SweetFarmerSocksTitle,
+            SweetFarmerPart.Shoes => I18n.SweetFarmerShoesTitle,
+            _ => I18n.SweetFarmerSleevesTitle
+        };
+        SpriteText.drawStringWithScrollCenteredAt(b, title, modal.Center.X, modal.Y + 28);
+
+        IReadOnlyList<string> options = GetSweetFarmerOptions();
+        bool shoes = _sweetFarmerPart == SweetFarmerPart.Shoes;
+        int optionCount = options.Count + (shoes ? 0 : 1);
+        for (int index = 0; index < optionCount; index++)
+        {
+            Rectangle cell = GetSweetFarmerCellBounds(modal, index);
+            string? value = shoes ? options[index] : index == 0 ? null : options[index - 1];
+            string? pending = _sweetFarmerPart switch
+            {
+                SweetFarmerPart.Socks => _pendingSocks,
+                SweetFarmerPart.Shoes => _pendingShoes,
+                _ => _pendingSleeve
+            };
+            bool selected = string.Equals(pending, value, StringComparison.Ordinal);
+            drawTextureBox(b, Game1.mouseCursors, new Rectangle(432, 439, 9, 9),
+                cell.X, cell.Y, cell.Width, cell.Height,
+                selected ? Color.PaleGreen : cell.Contains(Game1.getMouseX(), Game1.getMouseY()) ? Color.Wheat : Color.White,
+                4f, drawShadow: false);
+            string label = value is null ? I18n.SweetFarmerNoAssignment
+                : I18n.SweetFarmerValue(_sweetFarmerPart.ToString(), value);
+            label = TruncateString(label, Game1.smallFont, cell.Width - 28);
+            Vector2 size = Game1.smallFont.MeasureString(label);
+            Utility.drawTextWithShadow(b, label, Game1.smallFont,
+                new Vector2(cell.X + 14, cell.Center.Y - size.Y / 2), Game1.textColor);
+        }
+
+        DrawMenuButton(b, GetShoePickerCloseBounds(modal), I18n.ButtonCancel);
+    }
+
+    private void HandleSleevePickerClick(int x, int y)
+    {
+        Rectangle modal = GetSweetFarmerPickerBounds();
+        if (!modal.Contains(x, y) || GetShoePickerCloseBounds(modal).Contains(x, y))
+        {
+            _sleevePickerOpen = false;
+            Game1.playSound("smallSelect");
+            return;
+        }
+
+        IReadOnlyList<string> options = GetSweetFarmerOptions();
+        bool shoes = _sweetFarmerPart == SweetFarmerPart.Shoes;
+        int optionCount = options.Count + (shoes ? 0 : 1);
+        for (int index = 0; index < optionCount; index++)
+        {
+            if (!GetSweetFarmerCellBounds(modal, index).Contains(x, y))
+                continue;
+            string? selected = shoes ? options[index] : index == 0 ? null : options[index - 1];
+            switch (_sweetFarmerPart)
+            {
+                case SweetFarmerPart.Socks:
+                    _pendingSocks = selected;
+                    _socksEditing = true;
+                    break;
+                case SweetFarmerPart.Shoes:
+                    _pendingShoes = selected;
+                    _shoesEditing = true;
+                    break;
+                default:
+                    _pendingSleeve = selected;
+                    _sleeveEditing = true;
+                    break;
+            }
+            PreviewSweetFarmerStyle();
+            _sleevePickerOpen = false;
+            Game1.playSound("coin");
+            return;
+        }
+    }
+
+    private bool IsPeachMode => _peachBody.IsAvailable && !_sleeveManager.IsAvailable;
+    private bool IsElegantMode => _elegantBody.IsAvailable && !_sleeveManager.IsAvailable && !_peachBody.IsAvailable;
+    private IOutfitBodyLayerManager? ActiveBodyManager => IsPeachMode ? _peachBody : IsElegantMode ? _elegantBody : null;
+
+    private void DrawPeachCategory(SpriteBatch b)
+    {
+        b.Draw(Game1.fadeToBlackRect, Game1.graphics.GraphicsDevice.Viewport.Bounds, Color.Black * 0.55f);
+        Rectangle modal = GetSweetFarmerCategoryBounds();
+        drawTextureBox(b, Game1.mouseCursors, new Rectangle(384, 373, 18, 18),
+            modal.X, modal.Y, modal.Width, modal.Height, Color.White, 4f, drawShadow: true);
+        SpriteText.drawStringWithScrollCenteredAt(b, IsElegantMode ? I18n.ElegantFarmerTitle : I18n.PeachBodyTitle, modal.Center.X, modal.Y + 28);
+        DrawMenuButton(b, GetSweetFarmerCategoryOption(modal, 0), IsElegantMode ? I18n.ElegantSleevesTitle : I18n.PeachSleevesTitle);
+        DrawMenuButton(b, GetSweetFarmerCategoryOption(modal, 1), IsElegantMode ? I18n.ElegantShoesTitle : I18n.PeachShoesTitle);
+        DrawMenuButton(b, GetShoePickerCloseBounds(modal), I18n.ButtonCancel);
+    }
+
+    private void HandlePeachCategoryClick(int x, int y)
+    {
+        Rectangle modal = GetSweetFarmerCategoryBounds();
+        for (int index = 0; index < 2; index++)
+        {
+            if (!GetSweetFarmerCategoryOption(modal, index).Contains(x, y))
+                continue;
+            _peachShoesPart = index == 1;
+            _peachPickerScroll = 0;
+            if (_selectedOutfit is not null)
+            {
+                if (_peachShoesPart && !_peachShoesEditing)
+                    _pendingPeachShoes = ActiveBodyManager?.GetShoes(_selectedOutfit);
+                if (!_peachShoesPart && !_peachSleeveEditing)
+                    _pendingPeachSleeve = ActiveBodyManager?.GetSleeve(_selectedOutfit);
+            }
+            _peachCategoryOpen = false;
+            _peachPickerOpen = true;
+            Game1.playSound("bigSelect");
+            return;
+        }
+        if (!modal.Contains(x, y) || GetShoePickerCloseBounds(modal).Contains(x, y))
+        {
+            _peachCategoryOpen = false;
+            Game1.playSound("smallSelect");
+        }
+    }
+
+    private IReadOnlyList<string> GetPeachOptions()
+        => _peachShoesPart ? ActiveBodyManager?.Shoes ?? Array.Empty<string>() : ActiveBodyManager?.Sleeves ?? Array.Empty<string>();
+
+    private int GetPeachPickerMaxScroll()
+        => Math.Max(0, (int)Math.Ceiling((GetPeachOptions().Count + 1) / 2d) - 5);
+
+    private static Rectangle GetPeachPickerBounds()
+        => new(Game1.uiViewport.Width / 2 - 410, Game1.uiViewport.Height / 2 - 320, 820, 640);
+
+    private static Rectangle GetPeachPickerCellBounds(Rectangle modal, int slot)
+    {
+        const int gap = 8;
+        int width = (modal.Width - 56 - gap) / 2;
+        return new Rectangle(modal.X + 28 + (slot % 2) * (width + gap),
+            modal.Y + 112 + (slot / 2) * 80, width, 72);
+    }
+
+    private void DrawPeachPicker(SpriteBatch b)
+    {
+        b.Draw(Game1.fadeToBlackRect, Game1.graphics.GraphicsDevice.Viewport.Bounds, Color.Black * 0.55f);
+        Rectangle modal = GetPeachPickerBounds();
+        drawTextureBox(b, Game1.mouseCursors, new Rectangle(384, 373, 18, 18),
+            modal.X, modal.Y, modal.Width, modal.Height, Color.White, 4f, drawShadow: true);
+        SpriteText.drawStringWithScrollCenteredAt(b,
+            _peachShoesPart
+                ? IsElegantMode ? I18n.ElegantShoesTitle : I18n.PeachShoesTitle
+                : IsElegantMode ? I18n.ElegantSleevesTitle : I18n.PeachSleevesTitle,
+            modal.Center.X, modal.Y + 28);
+
+        IReadOnlyList<string> options = GetPeachOptions();
+        int first = _peachPickerScroll * 2;
+        string? pending = _peachShoesPart ? _pendingPeachShoes : _pendingPeachSleeve;
+        string? hoveredLabel = null;
+        for (int slot = 0; slot < 10 && first + slot <= options.Count; slot++)
+        {
+            int optionIndex = first + slot;
+            Rectangle cell = GetPeachPickerCellBounds(modal, slot);
+            string? value = optionIndex == 0 ? null : options[optionIndex - 1];
+            bool selected = string.Equals(pending, value, StringComparison.Ordinal);
+            bool hovered = cell.Contains(Game1.getMouseX(), Game1.getMouseY());
+            drawTextureBox(b, Game1.mouseCursors, new Rectangle(432, 439, 9, 9),
+                cell.X, cell.Y, cell.Width, cell.Height,
+                selected ? Color.PaleGreen : hovered ? Color.Wheat : Color.White,
+                4f, drawShadow: false);
+            string label = value is null
+                ? IsElegantMode ? I18n.ElegantNoAssignment : I18n.PeachNoAssignment
+                : IsElegantMode ? I18n.ElegantValue(_peachShoesPart, value) : I18n.PeachValue(_peachShoesPart, value);
+            if (hovered)
+                hoveredLabel = label;
+            string shortLabel = TruncateString(label, Game1.smallFont, cell.Width - 28);
+            Vector2 size = Game1.smallFont.MeasureString(shortLabel);
+            Utility.drawTextWithShadow(b, shortLabel, Game1.smallFont,
+                new Vector2(cell.X + 14, cell.Center.Y - size.Y / 2f), Game1.textColor);
+        }
+        DrawMenuButton(b, GetShoePickerCloseBounds(modal), I18n.ButtonCancel);
+        if (GetPeachPickerMaxScroll() > 0)
+        {
+            DrawArrowButton(b, GetShoePickerUpBounds(modal), LeftArrowSrc, rotated: true);
+            DrawArrowButton(b, GetShoePickerDownBounds(modal), RightArrowSrc, rotated: true);
+        }
+        if (hoveredLabel is not null)
+            drawHoverText(b, hoveredLabel, Game1.smallFont);
+    }
+
+    private void HandlePeachPickerClick(int x, int y)
+    {
+        Rectangle modal = GetPeachPickerBounds();
+        if (GetShoePickerUpBounds(modal).Contains(x, y))
+        {
+            _peachPickerScroll = Math.Max(0, _peachPickerScroll - 1);
+            Game1.playSound("shwip");
+            return;
+        }
+        if (GetShoePickerDownBounds(modal).Contains(x, y))
+        {
+            _peachPickerScroll = Math.Min(GetPeachPickerMaxScroll(), _peachPickerScroll + 1);
+            Game1.playSound("shwip");
+            return;
+        }
+        if (!modal.Contains(x, y) || GetShoePickerCloseBounds(modal).Contains(x, y))
+        {
+            _peachPickerOpen = false;
+            Game1.playSound("smallSelect");
+            return;
+        }
+        IReadOnlyList<string> options = GetPeachOptions();
+        for (int slot = 0; slot < 10; slot++)
+        {
+            int optionIndex = _peachPickerScroll * 2 + slot;
+            if (optionIndex > options.Count || !GetPeachPickerCellBounds(modal, slot).Contains(x, y))
+                continue;
+            string? value = optionIndex == 0 ? null : options[optionIndex - 1];
+            if (_peachShoesPart)
+            {
+                _pendingPeachShoes = value;
+                _peachShoesEditing = true;
+            }
+            else
+            {
+                _pendingPeachSleeve = value;
+                _peachSleeveEditing = true;
+            }
+            PreviewPeachStyle();
+            _peachPickerOpen = false;
+            Game1.playSound("coin");
+            return;
+        }
+    }
+
     private bool BeginFootwearEdit()
     {
         if (_selectedOutfit is null)
@@ -2919,12 +3433,27 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
         }
 
         _cosmeticShoeManager.SetShoe(_selectedOutfit, _pendingCosmeticShoeId);
+        if (_sleeveEditing)
+            _sleeveManager.Set(_selectedOutfit, _pendingSleeve);
+        if (_socksEditing)
+            _sleeveManager.SetSocks(_selectedOutfit, _pendingSocks);
+        if (_shoesEditing)
+            _sleeveManager.SetShoes(_selectedOutfit, _pendingShoes);
+        if (_peachSleeveEditing)
+            ActiveBodyManager?.SetSleeve(_selectedOutfit, _pendingPeachSleeve);
+        if (_peachShoesEditing)
+            ActiveBodyManager?.SetShoes(_selectedOutfit, _pendingPeachShoes);
         bool savedImmediately = _immediateOutfits.Capture(_selectedOutfit);
         // Saving another outfit must keep it as a reversible preview. Only the
         // explicit Equip button should replace the outfit the player was wearing.
         if (_renderer.IsPreviewingOriginalOutfit)
             _renderer.CommitPreview();
         _footwearEditing = false;
+        _sleeveEditing = false;
+        _socksEditing = false;
+        _shoesEditing = false;
+        _peachSleeveEditing = false;
+        _peachShoesEditing = false;
         Game1.addHUDMessage(savedImmediately
             ? new HUDMessage(I18n.MessageFootwearSaved)
             : new HUDMessage(I18n.ErrorImmediateSaveFailed, HUDMessage.error_type));
@@ -2939,6 +3468,10 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
         _saveAppearanceChoiceOpen = true;
         _shoePickerOpen = false;
         _fashionSenseShoePickerOpen = false;
+        _sweetFarmerCategoryOpen = false;
+        _sleevePickerOpen = false;
+        _peachCategoryOpen = false;
+        _peachPickerOpen = false;
         UpdateSaveAppearanceChoiceLayout();
         Game1.playSound("bigSelect");
     }
@@ -3004,12 +3537,32 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
         }
 
         _cosmeticShoeManager.SetShoe(_selectedOutfit, cosmeticShoeId);
+        if (_sleeveEditing)
+            _sleeveManager.Set(_selectedOutfit, _pendingSleeve);
+        if (_socksEditing)
+            _sleeveManager.SetSocks(_selectedOutfit, _pendingSocks);
+        if (_shoesEditing)
+            _sleeveManager.SetShoes(_selectedOutfit, _pendingShoes);
+        if (_peachSleeveEditing)
+            ActiveBodyManager?.SetSleeve(_selectedOutfit, _pendingPeachSleeve);
+        if (_peachShoesEditing)
+            ActiveBodyManager?.SetShoes(_selectedOutfit, _pendingPeachShoes);
         bool savedImmediately = _immediateOutfits.Capture(_selectedOutfit);
         if (_renderer.IsPreviewingOriginalOutfit)
             _renderer.CommitPreview();
         _footwearEditing = false;
+        _sleeveEditing = false;
+        _socksEditing = false;
+        _shoesEditing = false;
+        _peachSleeveEditing = false;
+        _peachShoesEditing = false;
         _pendingCosmeticShoeId = null;
         _pendingFashionSenseShoeId = null;
+        _pendingSleeve = null;
+        _pendingSocks = null;
+        _pendingShoes = null;
+        _pendingPeachSleeve = null;
+        _pendingPeachShoes = null;
         RefreshParentMenu();
         Game1.addHUDMessage(savedImmediately
             ? new HUDMessage(I18n.MessageAppearanceOverwritten)
@@ -3516,6 +4069,7 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
                 _selectedOutfit = outfitName;
                 _previewFacing  = 2;
                 _renderer.ApplyOutfitForPreview(outfitName);
+                PreviewSweetFarmerStyle();
 
                 Game1.playSound("smallSelect");
                 return;
@@ -3612,6 +4166,7 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
         }
 
         _selectedOutfit = outfitName;
+        PreviewSweetFarmerStyle();
         RefreshParentMenu();
         RebuildVisibleOutfits();
         Game1.addHUDMessage(new HUDMessage(I18n.MessageOutfitUpdated));
@@ -3650,16 +4205,47 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
             return;
         }
 
+        // Save the appearance currently shown in the Wardrobe under the new
+        // name. A piece may already belong to the selected outfit even when it
+        // wasn't edited during this menu session.
+        string? sourceOutfit = _selectedOutfit;
+        string? cosmeticShoeId = _footwearEditing
+            ? _pendingCosmeticShoeId
+            : sourceOutfit is null ? null : _cosmeticShoeManager.GetShoeId(sourceOutfit);
+        _cosmeticShoeManager.SetShoe(outfitName, cosmeticShoeId);
+        if (_footwearEditing)
+            _renderer.SaveFashionSenseShoe(outfitName, _pendingFashionSenseShoeId);
+        if (_sleeveManager.IsAvailable)
+        {
+            _sleeveManager.Set(outfitName, _sleeveEditing
+                ? _pendingSleeve : sourceOutfit is null ? null : _sleeveManager.Get(sourceOutfit));
+            _sleeveManager.SetSocks(outfitName, _socksEditing
+                ? _pendingSocks : sourceOutfit is null ? null : _sleeveManager.GetSocks(sourceOutfit));
+            _sleeveManager.SetShoes(outfitName, _shoesEditing
+                ? _pendingShoes : sourceOutfit is null ? null : _sleeveManager.GetShoes(sourceOutfit));
+        }
+        if (ActiveBodyManager is { } bodyManager)
+        {
+            bodyManager.SetSleeve(outfitName, _peachSleeveEditing
+                ? _pendingPeachSleeve : sourceOutfit is null ? null : bodyManager.GetSleeve(sourceOutfit));
+            bodyManager.SetShoes(outfitName, _peachShoesEditing
+                ? _pendingPeachShoes : sourceOutfit is null ? null : bodyManager.GetShoes(sourceOutfit));
+        }
+        bool savedImmediately = _immediateOutfits.Capture(outfitName);
+
         _allOutfitNames.Add(outfitName);
-        _selectedOutfit = outfitName;
-        _previewFacing = 2;
+        // SelectOutfit resets the unsaved preview and loads the values just
+        // stored under the new name. This also keeps Equip consistent.
+        _selectedOutfit = null;
+        SelectOutfit(outfitName);
         _savingCurrentOutfit = false;
         _newItemName = string.Empty;
         _namingFocused = false;
         _scrollOffset = 0;
         RefreshParentMenu();
         RebuildVisibleOutfits();
-        SelectOutfit(outfitName);
+        if (!savedImmediately)
+            Game1.addHUDMessage(new HUDMessage(I18n.ErrorImmediateSaveFailed, HUDMessage.error_type));
         Game1.playSound("newArtifact");
     }
 
@@ -3736,6 +4322,9 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
         _tagManager.SaveTags(_tags);
         _schedulePanel.RenameOutfit(oldName, newName);
         _cosmeticShoeManager.RenameOutfit(oldName, newName);
+        _sleeveManager.RenameOutfit(oldName, newName);
+        _peachBody.RenameOutfit(oldName, newName);
+        _elegantBody.RenameOutfit(oldName, newName);
         _indoorAdjustments.RenameOutfit(oldName, newName);
 
         if (_selectedOutfit is not null && _selectedOutfit.Equals(oldName, StringComparison.OrdinalIgnoreCase))
@@ -3852,14 +4441,46 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
 
     // Selection / equipping
 
+    private void PreviewSweetFarmerStyle()
+    {
+        if (_selectedOutfit is null)
+            return;
+
+        string? shoes = _shoesEditing ? _pendingShoes : _sleeveManager.GetEffectiveShoes(_selectedOutfit);
+        _sleeveManager.Preview(_selectedOutfit,
+            _sleeveEditing ? _pendingSleeve : _sleeveManager.Get(_selectedOutfit),
+            _socksEditing ? _pendingSocks : _sleeveManager.GetSocks(_selectedOutfit),
+            shoes);
+        _renderer.ApplyDefaultSweetFarmerShoeForCurrentOutfit(_selectedOutfit, shoes ?? "Basic");
+    }
+
+    private void PreviewPeachStyle()
+    {
+        if (_selectedOutfit is null || ActiveBodyManager is not { } manager)
+            return;
+        manager.Preview(_selectedOutfit,
+            _peachSleeveEditing ? _pendingPeachSleeve : manager.GetSleeve(_selectedOutfit),
+            _peachShoesEditing ? _pendingPeachShoes : manager.GetShoes(_selectedOutfit));
+    }
+
     private void SelectOutfit(string outfitName)
     {
         if (_selectedOutfit == outfitName)
             return;
 
         _footwearEditing = false;
+        _sleeveEditing = false;
+        _socksEditing = false;
+        _shoesEditing = false;
+        _peachSleeveEditing = false;
+        _peachShoesEditing = false;
         _pendingCosmeticShoeId = null;
         _pendingFashionSenseShoeId = null;
+        _pendingSleeve = null;
+        _pendingSocks = null;
+        _pendingShoes = null;
+        _pendingPeachSleeve = null;
+        _pendingPeachShoes = null;
 
         // Restore before applying another preview
         if (_renderer.IsPreviewActive)
@@ -3869,6 +4490,8 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
         _previewFacing  = 2;
 
         _renderer.ApplyOutfitForPreview(outfitName);
+        PreviewSweetFarmerStyle();
+        PreviewPeachStyle();
         Game1.playSound("smallSelect");
     }
 
@@ -3876,6 +4499,17 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
     {
         if (_selectedOutfit is null)
             return;
+
+        _sleeveEditing = false;
+        _pendingSleeve = null;
+        _socksEditing = false;
+        _shoesEditing = false;
+        _peachSleeveEditing = false;
+        _peachShoesEditing = false;
+        _pendingSocks = null;
+        _pendingShoes = null;
+        _pendingPeachSleeve = null;
+        _pendingPeachShoes = null;
 
         // Footwear edits require the explicit heart button. If they weren't
         // saved, discard them before equipping the selected saved outfit.
@@ -3947,6 +4581,9 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
         _tagManager.SaveTags(_tags);
         _schedulePanel.RemoveOutfits(deletedNames);
         _cosmeticShoeManager.RemoveOutfits(deletedNames);
+        _sleeveManager.RemoveOutfits(deletedNames);
+        _peachBody.RemoveOutfits(deletedNames);
+        _elegantBody.RemoveOutfits(deletedNames);
         _indoorAdjustments.RemoveOutfits(deletedNames);
 
         if (_selectedOutfit is not null && deletedNames.Contains(_selectedOutfit))
@@ -4033,22 +4670,23 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
         // Equip button anchored near the bottom of the preview panel
         int equipY = _previewPanel.Bottom - 68;
         _equipButton = new Rectangle(
-            _previewPanel.Center.X - 80,
+            _previewPanel.Center.X - 100,
             equipY,
             160, 52);
+        _saveFootwearButton = new Rectangle(_equipButton.Right + 8, equipY + 8, 36, 36);
 
         // Direction arrows sit ABOVE the equip button (horizontally centred, below portrait name)
         int footwearY = equipY - 48;
         const int compactButtonW = 78;
         const int compactButtonH = 36;
         const int compactGap = 6;
-        int compactGroupW = compactButtonW * 2 + compactButtonH + compactGap * 2;
+        int compactGroupW = compactButtonW * 2 + 68 + compactGap * 2;
         int compactX = _previewPanel.Center.X - compactGroupW / 2;
         _cosmeticShoeButton = new Rectangle(compactX, footwearY, compactButtonW, compactButtonH);
         _fashionSenseShoeButton = new Rectangle(
             _cosmeticShoeButton.Right + compactGap, footwearY, compactButtonW, compactButtonH);
-        _saveFootwearButton = new Rectangle(
-            _fashionSenseShoeButton.Right + compactGap, footwearY, compactButtonH, compactButtonH);
+        _sleeveButton = new Rectangle(
+            _fashionSenseShoeButton.Right + compactGap, footwearY, 68, compactButtonH);
 
         int arrowY = equipY - 96;
         _leftArrow  = new Rectangle(_previewPanel.Center.X - 88, arrowY, 40, 36);
@@ -4107,10 +4745,15 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
         int tabX = _categoryBar.X;
         int tabY = _categoryBar.Y;
 
-        // Fixed I18n.ButtonAll tab
-        int todasW = Math.Max(80, (int)Game1.smallFont.MeasureString(I18n.ButtonAll).X + 24);
-        _categoryTabs.Add(("all", I18n.ButtonAll, new Rectangle(tabX, tabY, todasW, CategoryBarH)));
+        // In schedule selection, this tab opens the view filter dropdown.
+        string allLabel = _scheduleOutfitSelectionMode && _scheduleShowSelectedOnly
+            ? I18n.ScheduleOnlySelected : I18n.ButtonAll;
+        int todasW = Math.Max(80, (int)Game1.smallFont.MeasureString(allLabel).X + 24);
+        _categoryTabs.Add(("all", allLabel, new Rectangle(tabX, tabY, todasW, CategoryBarH)));
         tabX += todasW + 6;
+
+        if (_scheduleOutfitSelectionMode && _scheduleShowSelectedOnly)
+            return;
 
         OutfitTag? selectedTag = SelectedTag;
 
@@ -4173,10 +4816,13 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
     {
         IEnumerable<string> outfits = _allOutfitNames;
 
+        if (_scheduleOutfitSelectionMode && _scheduleShowSelectedOnly)
+            outfits = outfits.Where(name => _scheduleSelectedOutfits.Contains(name));
+
         // During category/tag assignment, always show all outfits.
         // Otherwise, creating a second category/tag while a category or advanced filter is active
         // can make the assignment screen look empty.
-        if (!(_assignMode || _assignTagMode))
+        if (!(_assignMode || _assignTagMode || (_scheduleOutfitSelectionMode && _scheduleShowSelectedOnly)))
         {
             // Category filter
             // When the advanced tab is open, it owns the category filter.
@@ -4421,6 +5067,10 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
     {
         if (restoreOriginal && _renderer.IsPreviewActive)
             _renderer.RestoreOriginal();
+
+        _sleeveManager.EndPreview(GetCurrentOutfitName());
+        _peachBody.EndPreview(GetCurrentOutfitName());
+        _elegantBody.EndPreview(GetCurrentOutfitName());
 
         _footwearEditing = false;
         _pendingCosmeticShoeId = null;

@@ -290,7 +290,8 @@ internal sealed class ScheduleEvaluator
             || (!festivalRule && !MatchesDay(rule))
             || (!festivalRule && !MatchesWeather(rule.WeatherIds))
             || !MatchesPeriod(rule.Period)
-            || (!festivalRule && !MatchesLocation(rule.LocationIds)))
+            || (!festivalRule && !MatchesLocation(rule.LocationIds))
+            || (festivalRule && rule.TimeWindows.Count == 0 && Game1.player.currentLocation is FarmHouse))
         {
             return false;
         }
@@ -398,7 +399,8 @@ internal sealed class ScheduleEvaluator
         {
             ScheduleConditionIds.Sunny => current.Equals("Sun", StringComparison.OrdinalIgnoreCase)
                 || current.Equals("Wind", StringComparison.OrdinalIgnoreCase)
-                || current.Equals("Debris", StringComparison.OrdinalIgnoreCase),
+                || current.Equals("Debris", StringComparison.OrdinalIgnoreCase)
+                || current.Equals("Festival", StringComparison.OrdinalIgnoreCase),
             "Wind" => current.Equals("Wind", StringComparison.OrdinalIgnoreCase)
                 || current.Equals("Debris", StringComparison.OrdinalIgnoreCase),
             _ => current.Equals(id, StringComparison.OrdinalIgnoreCase)

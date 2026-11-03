@@ -17,14 +17,21 @@ internal sealed class ImmediateOutfitPersistence
     private readonly IModHelper _helper;
     private readonly IMonitor _monitor;
     private readonly CosmeticShoeManager _shoes;
+    private readonly SweetFarmerSleeveManager _sleeves;
+    private readonly PeachBodyManager _peach;
+    private readonly ElegantFarmerBodyManager _elegant;
     private PendingEdits _pending = new();
     private string? _storageKey;
 
-    public ImmediateOutfitPersistence(IModHelper helper, IMonitor monitor, CosmeticShoeManager shoes)
+    public ImmediateOutfitPersistence(IModHelper helper, IMonitor monitor, CosmeticShoeManager shoes,
+        SweetFarmerSleeveManager sleeves, PeachBodyManager peach, ElegantFarmerBodyManager elegant)
     {
         _helper = helper;
         _monitor = monitor;
         _shoes = shoes;
+        _sleeves = sleeves;
+        _peach = peach;
+        _elegant = elegant;
     }
 
     public bool Capture(string outfitName)
@@ -52,7 +59,18 @@ internal sealed class ImmediateOutfitPersistence
             next.Outfits[outfitName] = new PendingOutfit
             {
                 OutfitJson = outfit.ToJsonString(),
-                CosmeticShoeId = _shoes.GetShoeId(outfitName)
+                CosmeticShoeId = _shoes.GetShoeId(outfitName),
+                SweetFarmerSleeve = _sleeves.Get(outfitName),
+                SweetFarmerSocks = _sleeves.GetSocks(outfitName),
+                SweetFarmerShoes = _sleeves.GetShoes(outfitName),
+                PeachSleeve = _peach.GetSleeve(outfitName),
+                PeachShoes = _peach.GetShoes(outfitName),
+                HasPeachChoices = true,
+                ElegantSleeve = _elegant.GetSleeve(outfitName),
+                ElegantShoes = _elegant.GetShoes(outfitName),
+                HasElegantChoices = true,
+                HasSweetFarmerSleeve = true,
+                HasSweetFarmerSocksShoes = true
             };
 
             // WriteGlobalData writes immediately; WriteSaveData does not survive a quit
@@ -140,7 +158,26 @@ internal sealed class ImmediateOutfitPersistence
 
             Game1.player.modData[CollectionKey] = outfits.ToJsonString();
             foreach ((string name, PendingOutfit edit) in stored.Outfits)
+            {
                 _shoes.SetShoe(name, edit.CosmeticShoeId);
+                if (edit.HasSweetFarmerSleeve)
+                    _sleeves.Set(name, edit.SweetFarmerSleeve);
+                if (edit.HasSweetFarmerSocksShoes)
+                {
+                    _sleeves.SetSocks(name, edit.SweetFarmerSocks);
+                    _sleeves.SetShoes(name, edit.SweetFarmerShoes);
+                }
+                if (edit.HasPeachChoices)
+                {
+                    _peach.SetSleeve(name, edit.PeachSleeve);
+                    _peach.SetShoes(name, edit.PeachShoes);
+                }
+                if (edit.HasElegantChoices)
+                {
+                    _elegant.SetSleeve(name, edit.ElegantSleeve);
+                    _elegant.SetShoes(name, edit.ElegantShoes);
+                }
+            }
 
             return true;
         }
@@ -177,5 +214,16 @@ internal sealed class ImmediateOutfitPersistence
     {
         public string OutfitJson { get; set; } = string.Empty;
         public string? CosmeticShoeId { get; set; }
+        public string? SweetFarmerSleeve { get; set; }
+        public string? SweetFarmerSocks { get; set; }
+        public string? SweetFarmerShoes { get; set; }
+        public bool HasSweetFarmerSleeve { get; set; }
+        public bool HasSweetFarmerSocksShoes { get; set; }
+        public string? PeachSleeve { get; set; }
+        public string? PeachShoes { get; set; }
+        public bool HasPeachChoices { get; set; }
+        public string? ElegantSleeve { get; set; }
+        public string? ElegantShoes { get; set; }
+        public bool HasElegantChoices { get; set; }
     }
 }

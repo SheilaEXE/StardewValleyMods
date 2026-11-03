@@ -1016,7 +1016,7 @@ internal sealed class SchedulePanel
         _conditionPickerDoneButton = new Rectangle(_conditionPickerBounds.Right - 204, buttonY, 180, 42);
         DrawButton(b, _conditionPickerClearButton,
             _conditionPickerKind == ConditionPickerKind.Time
-                ? _editingWindowEnd ? I18n.ScheduleNoEnd : I18n.ButtonDone
+                ? _editingWindowEnd ? I18n.ScheduleNoEnd : I18n.ButtonCancel
                 : _conditionPickerKind == ConditionPickerKind.Festival
                     ? I18n.ScheduleNoFestival
                     : I18n.ScheduleAny,
