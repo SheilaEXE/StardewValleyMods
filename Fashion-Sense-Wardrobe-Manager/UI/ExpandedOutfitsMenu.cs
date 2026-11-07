@@ -229,6 +229,8 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
     private bool _scheduleOutfitSelectionMode;
     private bool _scheduleShowSelectedOnly;
     private bool _scheduleViewDropdownOpen;
+    private bool _assignShowSelectedOnly;
+    private bool _assignViewDropdownOpen;
     private string? _scheduleSelectionRuleId;
     private HashSet<string> _scheduleSelectedOutfits = new(StringComparer.OrdinalIgnoreCase);
     private HashSet<string> _scheduleSelectedTagIds = new(StringComparer.OrdinalIgnoreCase);
@@ -1377,6 +1379,8 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
         _selectedTagId = null;
         _assignMode = true;
         _assignTagMode = false;
+        _assignShowSelectedOnly = false;
+        _assignViewDropdownOpen = false;
         _pendingCategoryId = categoryId;
         _pendingTagId = null;
         _scrollOffset = 0;
@@ -1508,9 +1512,12 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
             {
                 _assignMode        = false;
                 _pendingCategoryId = null;
+                _assignShowSelectedOnly = false;
+                _assignViewDropdownOpen = false;
                 if (_renderer.IsPreviewActive) _renderer.RestoreOriginal();
                 _selectedOutfit = null;
                 RebuildCategoryTabs();
+                RebuildVisibleOutfits();
                 Game1.playSound("smallSelect");
             }
             else if (_assignTagMode)
@@ -2291,7 +2298,7 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
     /// </summary>
     private void DrawDropdownOverlay(SpriteBatch b)
     {
-        if (_scheduleViewDropdownOpen)
+        if (_scheduleViewDropdownOpen || _assignViewDropdownOpen)
             DrawScheduleViewDropdownOverlay(b);
 
         if (_dropdownOpen)
@@ -2321,7 +2328,8 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
             Rectangle itemRect = new(layout.ItemsBounds.X,
                 layout.ItemsBounds.Y + row * CategoryBarH,
                 layout.ItemsBounds.Width, CategoryBarH);
-            bool active = _scheduleShowSelectedOnly == (row == 1);
+            bool selectedOnly = _assignMode ? _assignShowSelectedOnly : _scheduleShowSelectedOnly;
+            bool active = selectedOnly == (row == 1);
             if (active)
                 b.Draw(Game1.staminaRect, itemRect, Color.SandyBrown * 0.4f);
             else if (itemRect.Contains(Game1.getMouseX(), Game1.getMouseY()))
@@ -3758,7 +3766,9 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
         foreach (var (id, label, bounds) in _categoryTabs)
         {
             bool isDropdown = id == "__dropdown__";
-            bool active     = (!isDropdown && id == _selectedCategoryId) || (isDropdown && _selectedCategoryId != "all");
+            bool active     = (_assignMode && _assignShowSelectedOnly && id == "all")
+                || (!_assignShowSelectedOnly
+                    && ((!isDropdown && id == _selectedCategoryId) || (isDropdown && _selectedCategoryId != "all")));
             bool hovered    = bounds.Contains(Game1.getMouseX(), Game1.getMouseY());
 
             Color tint = active  ? Color.SandyBrown
@@ -4001,6 +4011,48 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
 
     private void HandleAssignModeClick(int x, int y)
     {
+        if (_assignMode)
+        {
+            var allTab = _categoryTabs.FirstOrDefault(tab => tab.Id == "all");
+            if (allTab != default)
+            {
+                if (_assignViewDropdownOpen)
+                {
+                    if (allTab.Bounds.Contains(x, y))
+                    {
+                        _assignViewDropdownOpen = false;
+                        Game1.playSound("smallSelect");
+                        return;
+                    }
+
+                    DropdownLayout layout = GetDropdownLayout(allTab.Bounds, 2, 240, 0);
+                    for (int row = 0; row < 2; row++)
+                    {
+                        Rectangle itemRect = new(layout.ItemsBounds.X,
+                            layout.ItemsBounds.Y + row * CategoryBarH,
+                            layout.ItemsBounds.Width, CategoryBarH);
+                        if (!itemRect.Contains(x, y))
+                            continue;
+
+                        _assignShowSelectedOnly = row == 1;
+                        _assignViewDropdownOpen = false;
+                        _scrollOffset = 0;
+                        RebuildVisibleOutfits();
+                        RebuildCategoryTabs();
+                        Game1.playSound("smallSelect");
+                        return;
+                    }
+                    _assignViewDropdownOpen = false;
+                }
+                else if (allTab.Bounds.Contains(x, y))
+                {
+                    _assignViewDropdownOpen = true;
+                    Game1.playSound("smallSelect");
+                    return;
+                }
+            }
+        }
+
         // Done button
         if (_equipButton.Contains(x, y))
         {
@@ -4018,6 +4070,8 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
             {
                 _assignMode        = false;
                 _pendingCategoryId = null;
+                _assignShowSelectedOnly = false;
+                _assignViewDropdownOpen = false;
                 // Reload from modData to guarantee consistency
                 _categories = _categoryManager.LoadCategories();
                 _advancedPanel.SetData(_categories, _tags);
@@ -4063,6 +4117,12 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
                     _tagManager.ToggleOutfitInTag(_tags, _pendingTagId, outfitName);
                 else if (_pendingCategoryId is not null)
                     _categoryManager.ToggleOutfitInCategory(_categories, _pendingCategoryId, outfitName);
+
+                if (_assignMode && _assignShowSelectedOnly)
+                {
+                    RebuildVisibleOutfits();
+                    ScrollBy(0);
+                }
 
                 // Apply preview
                 if (_renderer.IsPreviewActive) _renderer.RestoreOriginal();
@@ -4400,6 +4460,8 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
             _creatingCategory  = false;
             _newItemName       = string.Empty;
             _assignMode        = true;
+            _assignShowSelectedOnly = false;
+            _assignViewDropdownOpen = false;
             _pendingCategoryId = created.Id;
             _scrollOffset      = 0;
 
@@ -4746,13 +4808,15 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
         int tabY = _categoryBar.Y;
 
         // In schedule selection, this tab opens the view filter dropdown.
-        string allLabel = _scheduleOutfitSelectionMode && _scheduleShowSelectedOnly
+        bool selectedOnly = (_scheduleOutfitSelectionMode && _scheduleShowSelectedOnly)
+            || (_assignMode && _assignShowSelectedOnly);
+        string allLabel = selectedOnly
             ? I18n.ScheduleOnlySelected : I18n.ButtonAll;
         int todasW = Math.Max(80, (int)Game1.smallFont.MeasureString(allLabel).X + 24);
         _categoryTabs.Add(("all", allLabel, new Rectangle(tabX, tabY, todasW, CategoryBarH)));
         tabX += todasW + 6;
 
-        if (_scheduleOutfitSelectionMode && _scheduleShowSelectedOnly)
+        if (selectedOnly)
             return;
 
         OutfitTag? selectedTag = SelectedTag;
@@ -4818,6 +4882,13 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
 
         if (_scheduleOutfitSelectionMode && _scheduleShowSelectedOnly)
             outfits = outfits.Where(name => _scheduleSelectedOutfits.Contains(name));
+        else if (_assignMode && _assignShowSelectedOnly)
+        {
+            OutfitCategory? category = _categories.FirstOrDefault(c => c.Id == _pendingCategoryId);
+            outfits = category is null
+                ? Enumerable.Empty<string>()
+                : outfits.Where(name => category.OutfitNames.Contains(name));
+        }
 
         // During category/tag assignment, always show all outfits.
         // Otherwise, creating a second category/tag while a category or advanced filter is active
