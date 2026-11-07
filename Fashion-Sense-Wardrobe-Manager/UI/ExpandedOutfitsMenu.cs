@@ -157,6 +157,8 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
     // "Assign mode" for categories
     private bool          _assignMode         = false;
     private string?       _pendingCategoryId  = null;
+    private List<string>  _pendingCategoryOutfits = new();
+    private HashSet<string> _categorySelectedOnlyVisible = new(StringComparer.OrdinalIgnoreCase);
 
     // "Assign tag mode"
     private bool    _assignTagMode  = false;
@@ -1382,6 +1384,9 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
         _assignShowSelectedOnly = false;
         _assignViewDropdownOpen = false;
         _pendingCategoryId = categoryId;
+        _pendingCategoryOutfits = _categories.FirstOrDefault(c => c.Id == categoryId)?.OutfitNames.ToList()
+            ?? new List<string>();
+        _categorySelectedOnlyVisible = new HashSet<string>(_pendingCategoryOutfits, StringComparer.OrdinalIgnoreCase);
         _pendingTagId = null;
         _scrollOffset = 0;
         _searchText = string.Empty;
@@ -1512,6 +1517,8 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
             {
                 _assignMode        = false;
                 _pendingCategoryId = null;
+                _pendingCategoryOutfits.Clear();
+                _categorySelectedOnlyVisible.Clear();
                 _assignShowSelectedOnly = false;
                 _assignViewDropdownOpen = false;
                 if (_renderer.IsPreviewActive) _renderer.RestoreOriginal();
@@ -3837,7 +3844,7 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
 
                 bool assigned = _assignTagMode
                     ? (pendingTag?.OutfitNames.Contains(name) ?? false)
-                    : (pending?.OutfitNames.Contains(name) ?? false);
+                    : _pendingCategoryOutfits.Contains(name);
                 bool hovered  = cell.Contains(Game1.getMouseX(), Game1.getMouseY());
 
                 if (assigned)
@@ -4068,8 +4075,16 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
             }
             else
             {
+                OutfitCategory? category = _categories.FirstOrDefault(c => c.Id == _pendingCategoryId);
+                if (category is not null)
+                {
+                    category.OutfitNames = _pendingCategoryOutfits.ToList();
+                    _categoryManager.SaveCategories(_categories);
+                }
                 _assignMode        = false;
                 _pendingCategoryId = null;
+                _pendingCategoryOutfits.Clear();
+                _categorySelectedOnlyVisible.Clear();
                 _assignShowSelectedOnly = false;
                 _assignViewDropdownOpen = false;
                 // Reload from modData to guarantee consistency
@@ -4116,12 +4131,12 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
                 if (_assignTagMode && _pendingTagId is not null)
                     _tagManager.ToggleOutfitInTag(_tags, _pendingTagId, outfitName);
                 else if (_pendingCategoryId is not null)
-                    _categoryManager.ToggleOutfitInCategory(_categories, _pendingCategoryId, outfitName);
-
-                if (_assignMode && _assignShowSelectedOnly)
                 {
-                    RebuildVisibleOutfits();
-                    ScrollBy(0);
+                    if (!_pendingCategoryOutfits.Remove(outfitName))
+                    {
+                        _pendingCategoryOutfits.Add(outfitName);
+                        _categorySelectedOnlyVisible.Add(outfitName);
+                    }
                 }
 
                 // Apply preview
@@ -4463,6 +4478,8 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
             _assignShowSelectedOnly = false;
             _assignViewDropdownOpen = false;
             _pendingCategoryId = created.Id;
+            _pendingCategoryOutfits = new List<string>();
+            _categorySelectedOnlyVisible = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             _scrollOffset      = 0;
 
             _categories = _categoryManager.LoadCategories();
@@ -4883,12 +4900,7 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
         if (_scheduleOutfitSelectionMode && _scheduleShowSelectedOnly)
             outfits = outfits.Where(name => _scheduleSelectedOutfits.Contains(name));
         else if (_assignMode && _assignShowSelectedOnly)
-        {
-            OutfitCategory? category = _categories.FirstOrDefault(c => c.Id == _pendingCategoryId);
-            outfits = category is null
-                ? Enumerable.Empty<string>()
-                : outfits.Where(name => category.OutfitNames.Contains(name));
-        }
+            outfits = outfits.Where(name => _categorySelectedOnlyVisible.Contains(name));
 
         // During category/tag assignment, always show all outfits.
         // Otherwise, creating a second category/tag while a category or advanced filter is active
