@@ -4270,7 +4270,7 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
 
         if (_allOutfitNames.Any(name => name.Equals(outfitName, StringComparison.OrdinalIgnoreCase)))
         {
-            Game1.addHUDMessage(new HUDMessage(I18n.ErrorNameTaken, HUDMessage.error_type));
+            Game1.addHUDMessage(new HUDMessage(I18n.ErrorOutfitNameTaken, HUDMessage.error_type));
             return;
         }
 
@@ -4279,6 +4279,11 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
             Game1.addHUDMessage(new HUDMessage(I18n.ErrorSaveOutfitFailed, HUDMessage.error_type));
             return;
         }
+
+        // The new name is now persisted. Close the naming state before any
+        // preview or parent-menu refresh can process another confirmation.
+        _savingCurrentOutfit = false;
+        _namingFocused = false;
 
         // Save the appearance currently shown in the Wardrobe under the new
         // name. A piece may already belong to the selected outfit even when it
@@ -4313,9 +4318,7 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
         // stored under the new name. This also keeps Equip consistent.
         _selectedOutfit = null;
         SelectOutfit(outfitName);
-        _savingCurrentOutfit = false;
         _newItemName = string.Empty;
-        _namingFocused = false;
         _scrollOffset = 0;
         RefreshParentMenu();
         RebuildVisibleOutfits();
@@ -4341,7 +4344,7 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
         if (!oldName.Equals(newName, StringComparison.OrdinalIgnoreCase)
             && _allOutfitNames.Any(name => name.Equals(newName, StringComparison.OrdinalIgnoreCase)))
         {
-            Game1.addHUDMessage(new HUDMessage(I18n.ErrorNameTaken, HUDMessage.error_type));
+            Game1.addHUDMessage(new HUDMessage(I18n.ErrorOutfitNameTaken, HUDMessage.error_type));
             return;
         }
 

@@ -33,6 +33,7 @@
   "ui.error.select_first": "Select outfits first.",
   "ui.error.name_empty": "The name cannot be empty.",
   "ui.error.name_taken": "A category with that name already exists.",
+  "ui.error.outfit_name_taken": "An outfit with that name already exists.",
   "ui.error.presets_unsupported": "Preset preview is not yet supported.",
   "config.shortcut.name": "Quick preview shortcut",
   "config.shortcut.tooltip": "Key that, combined with left-click, opens the quick outfit preview.",

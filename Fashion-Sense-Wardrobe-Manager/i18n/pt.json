@@ -33,6 +33,7 @@
   "ui.error.select_first": "Selecione outfits primeiro.",
   "ui.error.name_empty": "O nome não pode ser vazio.",
   "ui.error.name_taken": "Já existe uma categoria com esse nome.",
+  "ui.error.outfit_name_taken": "Já existe um outfit com esse nome.",
   "ui.error.presets_unsupported": "Preview de presets ainda não suportado.",
   "config.shortcut.name": "Atalho de preview rápido",
   "config.shortcut.tooltip": "Tecla que, junto ao clique esquerdo, abre o preview rápido de outfit.",

@@ -131,6 +131,7 @@ internal static class I18n
     public static string ErrorSelectFirst     => Get("ui.error.select_first");
     public static string ErrorNameEmpty       => Get("ui.error.name_empty");
     public static string ErrorNameTaken       => Get("ui.error.name_taken");
+    public static string ErrorOutfitNameTaken => Get("ui.error.outfit_name_taken");
     public static string ErrorPresetsUnsupported => Get("ui.error.presets_unsupported");
 
     // Config
