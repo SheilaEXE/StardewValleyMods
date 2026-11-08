@@ -49,7 +49,9 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
     private const int GridCellW       = 220;
     private const int GridCellH       = 44;
     private const int PreviewPanelW   = 320;
-    private const int OutfitNameMaxW  = 170;
+    private const float GridNameScale = 0.85f;
+    private const int GridNameInset = 32;
+    private const int GridNameRightPadding = 12;
     private const int DropdownScrollbarW = 24;
     private const int DropdownScreenMargin = 16;
 
@@ -1699,7 +1701,6 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
             || _confirmDeleteCategory
             || _confirmDeleteTag
             || _confirmUpdateOutfit
-            || IsAssignmentModeActive
             || (_schedulePanel.IsOpen && !_scheduleOutfitSelectionMode)
             || _shoePickerOpen
             || _fashionSenseShoePickerOpen
@@ -1709,16 +1710,19 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
             || _peachPickerOpen
             || _saveAppearanceChoiceOpen;
 
+        Rectangle content = CurrentScrollContentArea;
         int hoveredIndex = gridUnavailable
             ? -1
-            : HitTestGridRow(Game1.getMouseX(), Game1.getMouseY());
+            : HitTestGridRow(content, Game1.getMouseX(), Game1.getMouseY());
 
         string? hoveredName = hoveredIndex >= 0 && hoveredIndex < _visibleOutfits.Count
             ? _visibleOutfits[hoveredIndex]
             : null;
 
+        int columns = Math.Max(1, content.Width / GridCellW);
+        int hoveredColumn = hoveredIndex >= 0 ? (hoveredIndex - _scrollOffset * columns) % columns : 0;
         if (hoveredName is not null
-            && TruncateString(hoveredName, Game1.smallFont, OutfitNameMaxW) == hoveredName)
+            && TruncateGridOutfitName(hoveredName, GetGridCellRect(content, 0, hoveredColumn).Width) == hoveredName)
         {
             hoveredName = null;
         }
@@ -2609,10 +2613,7 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
                 }
 
                 // Name (truncated)
-                string displayName = TruncateString(name, Game1.smallFont, OutfitNameMaxW);
-                Utility.drawTextWithShadow(b, displayName, Game1.smallFont,
-                    new Vector2(cell.X + 32, cell.Center.Y - Game1.smallFont.MeasureString("A").Y / 2f),
-                    isSelected ? Color.SaddleBrown : Game1.textColor);
+                DrawGridOutfitName(b, name, cell, isSelected ? Color.SaddleBrown : Game1.textColor);
             }
         }
 
@@ -3837,10 +3838,7 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
                     break;
 
                 string name    = _visibleOutfits[outfitIdx];
-                Rectangle cell = new(
-                    checkGrid.X + col * GridCellW,
-                    checkGrid.Y + row * GridCellH,
-                    GridCellW, GridCellH);
+                Rectangle cell = GetGridCellRect(checkGrid, row, col);
 
                 bool assigned = _assignTagMode
                     ? (pendingTag?.OutfitNames.Contains(name) ?? false)
@@ -3861,10 +3859,7 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
                     b.Draw(Game1.mouseCursors, cb, new Rectangle(236, 425, 9, 9), Color.White, 0f,
                         Vector2.Zero, SpriteEffects.None, 0.89f);
 
-                string displayName = TruncateString(name, Game1.smallFont, OutfitNameMaxW);
-                Utility.drawTextWithShadow(b, displayName, Game1.smallFont,
-                    new Vector2(cell.X + 32, cell.Center.Y - Game1.smallFont.MeasureString("A").Y / 2f),
-                    assigned ? Color.SaddleBrown : Game1.textColor);
+                DrawGridOutfitName(b, name, cell, assigned ? Color.SaddleBrown : Game1.textColor);
             }
         }
 
@@ -4119,10 +4114,7 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
                 int outfitIdx = _scrollOffset * cols + row * cols + col;
                 if (outfitIdx >= _visibleOutfits.Count) break;
 
-                Rectangle cell = new(
-                    checkGrid.X + col * GridCellW,
-                    checkGrid.Y + row * GridCellH,
-                    GridCellW, GridCellH);
+                Rectangle cell = GetGridCellRect(checkGrid, row, col);
 
                 if (!cell.Contains(x, y)) continue;
 
@@ -4979,8 +4971,10 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
     }
 
     private int HitTestGridRow(int x, int y)
+        => HitTestGridRow(GridContentArea, x, y);
+
+    private int HitTestGridRow(Rectangle content, int x, int y)
     {
-        Rectangle content = GridContentArea;
         int cols        = Math.Max(1, content.Width / GridCellW);
         int visibleRows = content.Height / GridCellH;
 
@@ -4993,7 +4987,7 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
                 if (outfitIdx >= _visibleOutfits.Count)
                     return -1;
 
-                if (GetGridCellRect(row, col).Contains(x, y))
+                if (GetGridCellRect(content, row, col).Contains(x, y))
                     return outfitIdx;
             }
         }
@@ -5044,8 +5038,32 @@ internal sealed class ExpandedOutfitsMenu : IClickableMenu
 
     private Rectangle GetGridCellRect(int row, int col)
     {
-        Rectangle content = GridContentArea;
-        return new(content.X + col * GridCellW, content.Y + row * GridCellH, GridCellW, GridCellH);
+        return GetGridCellRect(GridContentArea, row, col);
+    }
+
+    private static Rectangle GetGridCellRect(Rectangle content, int row, int col)
+    {
+        int cols = Math.Max(1, content.Width / GridCellW);
+        int left = content.X + col * content.Width / cols;
+        int right = content.X + (col + 1) * content.Width / cols;
+        return new Rectangle(left, content.Y + row * GridCellH, right - left, GridCellH);
+    }
+
+    private static string TruncateGridOutfitName(string name, int cellWidth)
+    {
+        int maxWidth = (int)((cellWidth - GridNameInset - GridNameRightPadding) / GridNameScale);
+        return TruncateString(name, Game1.smallFont, maxWidth);
+    }
+
+    private static void DrawGridOutfitName(SpriteBatch b, string name, Rectangle cell, Color color)
+    {
+        string displayName = TruncateGridOutfitName(name, cell.Width);
+        Vector2 size = Game1.smallFont.MeasureString(displayName) * GridNameScale;
+        Vector2 position = new(cell.X + GridNameInset, cell.Center.Y - size.Y / 2f);
+        b.DrawString(Game1.smallFont, displayName, position + new Vector2(1f, 1f),
+            Color.Black * 0.35f, 0f, Vector2.Zero, GridNameScale, SpriteEffects.None, 0.9f);
+        b.DrawString(Game1.smallFont, displayName, position,
+            color, 0f, Vector2.Zero, GridNameScale, SpriteEffects.None, 0.91f);
     }
 
     private Rectangle ScrollUpArrowBounds()
