@@ -25,37 +25,11 @@ namespace HomeSweetHomeSpouseDialogues
         public override void Entry(IModHelper helper)
         {
             Config = helper.ReadConfig<ModConfig>();
-            helper.Events.GameLoop.GameLaunched += OnGameLaunched;
             helper.Events.GameLoop.SaveLoaded += OnSaveLoaded;
             helper.Events.GameLoop.DayStarted += OnDayStarted;
             helper.Events.GameLoop.UpdateTicked += OnUpdateTicked;
             helper.Events.GameLoop.ReturnedToTitle += OnReturnedToTitle;
             helper.Events.Input.ButtonPressed += OnButtonPressed;
-        }
-
-        private void OnGameLaunched(object sender, GameLaunchedEventArgs e)
-        {
-            IGenericModConfigMenuApi configMenu = Helper.ModRegistry.GetApi<IGenericModConfigMenuApi>("spacechase0.GenericModConfigMenu");
-            if (configMenu != null)
-            {
-                configMenu.Register(
-                    ModManifest,
-                    reset: () => Config = new ModConfig(),
-                    save: () => Helper.WriteConfig(Config));
-
-                configMenu.AddKeybindList(
-                    ModManifest,
-                    getValue: () => Config.WaterSinkButton,
-                    setValue: value => Config.WaterSinkButton = value,
-                    name: () => Helper.Translation.Get("config.water-sink-button.name").ToString(),
-                    tooltip: () => Helper.Translation.Get("config.water-sink-button.description").ToString());
-            }
-
-            IContentPatcherApi contentPatcher = Helper.ModRegistry.GetApi<IContentPatcherApi>("Pathoschild.ContentPatcher");
-            contentPatcher?.RegisterToken(
-                ModManifest,
-                "WaterSinkButton",
-                () => new[] { Config.WaterSinkButton?.ToString() ?? "D5" });
         }
 
         private void OnSaveLoaded(object sender, SaveLoadedEventArgs e)

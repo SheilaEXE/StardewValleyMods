@@ -13,8 +13,9 @@
       "IsRequired": true
     },
     {
-      "UniqueID": "spacechase0.GenericModConfigMenu",
-      "IsRequired": false
+      "UniqueID": "NatrollEXE.StayHydrated.ContentPack",
+      "MinimumVersion": "1.0.0",
+      "IsRequired": true
     }
   ]
 }

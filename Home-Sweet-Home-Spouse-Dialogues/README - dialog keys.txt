@@ -24,9 +24,11 @@ Item gifts
 Use [item:ObjectId], [item:ObjectId:Amount], or
 [item:ObjectId:Amount:fullBagKey] in a dialogue line.
 
-The custom drink IDs are:
+The water IDs are provided by the required Stay Hydrated! mod:
   SiL.IcedWaterCup
   SiL.IcedWaterBottle
+
+The custom coffee and shake IDs provided by this content pack are:
   SiL.IcedCoffeeCup
   SiL.CreamCoffeeCup
   SiL.HomemadeShake
