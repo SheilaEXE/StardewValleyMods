@@ -1,0 +1,17 @@
+{
+  "Name": "Home Dialogues - Content Pack",
+  "Author": "NatrollEXE",
+  "Version": "1.0.0",
+  "Description": "Adds the custom coffees and shakes used by Home Dialogues.",
+  "UniqueID": "NatrollEXE.HomeDialogues.ContentPack",
+  "MinimumApiVersion": "4.0.0",
+  "ContentPackFor": {
+    "UniqueID": "Pathoschild.ContentPatcher"
+  },
+  "Dependencies": [
+    {
+      "UniqueID": "NatrollEXE.HomeDialogues",
+      "IsRequired": true
+    }
+  ]
+}

@@ -1,5 +1,5 @@
-Home Sweet Home: Spouse Dialogues
-=================================
+Home Dialogues
+==============
 
 This mod queues extra spouse dialogue without editing the game's marriage-dialogue assets.
 That lets its scheduled dialogue coexist with dialogue added by other mods.

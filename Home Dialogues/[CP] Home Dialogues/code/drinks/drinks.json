@@ -11,7 +11,7 @@
           "Type": "Cooking",
           "Category": -7,
           "Price": 180,
-          "Texture": "Mods/NatrollEXE.HomeSweetHomeSpouseDialogues.ContentPack/Objects",
+          "Texture": "Mods/NatrollEXE.HomeDialogues.ContentPack/Objects",
           "SpriteIndex": 0,
           "Edibility": 15,
           "IsDrink": true
@@ -23,7 +23,7 @@
           "Type": "Cooking",
           "Category": -7,
           "Price": 220,
-          "Texture": "Mods/NatrollEXE.HomeSweetHomeSpouseDialogues.ContentPack/Objects",
+          "Texture": "Mods/NatrollEXE.HomeDialogues.ContentPack/Objects",
           "SpriteIndex": 1,
           "Edibility": 25,
           "IsDrink": true
@@ -35,7 +35,7 @@
           "Type": "Cooking",
           "Category": -7,
           "Price": 200,
-          "Texture": "Mods/NatrollEXE.HomeSweetHomeSpouseDialogues.ContentPack/Objects",
+          "Texture": "Mods/NatrollEXE.HomeDialogues.ContentPack/Objects",
           "SpriteIndex": 2,
           "Edibility": 40,
           "IsDrink": true
@@ -47,7 +47,7 @@
           "Type": "Cooking",
           "Category": -7,
           "Price": 230,
-          "Texture": "Mods/NatrollEXE.HomeSweetHomeSpouseDialogues.ContentPack/Objects",
+          "Texture": "Mods/NatrollEXE.HomeDialogues.ContentPack/Objects",
           "SpriteIndex": 3,
           "Edibility": 40,
           "IsDrink": true
@@ -59,7 +59,7 @@
           "Type": "Cooking",
           "Category": -7,
           "Price": 240,
-          "Texture": "Mods/NatrollEXE.HomeSweetHomeSpouseDialogues.ContentPack/Objects",
+          "Texture": "Mods/NatrollEXE.HomeDialogues.ContentPack/Objects",
           "SpriteIndex": 4,
           "Edibility": 40,
           "IsDrink": true
@@ -68,7 +68,7 @@
     },
     {
       "Action": "Load",
-      "Target": "Mods/NatrollEXE.HomeSweetHomeSpouseDialogues.ContentPack/Objects",
+      "Target": "Mods/NatrollEXE.HomeDialogues.ContentPack/Objects",
       "FromFile": "assets/Objects.png"
     }
   ]

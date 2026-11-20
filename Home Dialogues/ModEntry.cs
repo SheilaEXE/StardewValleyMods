@@ -5,7 +5,7 @@ using StardewValley;
 using System;
 using System.Collections.Generic;
 
-namespace HomeSweetHomeSpouseDialogues
+namespace HomeDialogues
 {
     /// <summary>Queues this mod's dialogue separately from the game's marriage-dialogue asset.</summary>
     public sealed class ModEntry : Mod

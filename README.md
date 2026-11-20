@@ -9,7 +9,7 @@ The current versions of my original code and content in each folder are licensed
 | All Recipes for Sale! | [All-Recipes-for-Sale](All-Recipes-for-Sale/) | No GitHub release yet |
 | Cooking Anywhere | [Cooking-Anywhere](Cooking-Anywhere/) | [v1.0.0](https://github.com/SheilaEXE/StardewValleyMods/releases/tag/Cooking-Anywhere/v1.0.0) |
 | Fashion Sense Wardrobe Manager | [Fashion-Sense-Wardrobe-Manager](Fashion-Sense-Wardrobe-Manager/) | [v1.0.9](https://github.com/SheilaEXE/StardewValleyMods/releases/tag/Fashion-Sense-Wardrobe-Manager/v1.0.9) |
-| Home Sweet Home Spouse Dialogues | [Home-Sweet-Home-Spouse-Dialogues](Home-Sweet-Home-Spouse-Dialogues/) | No GitHub release yet |
+| Home Dialogues | [Home Dialogues](Home%20Dialogues/) | No GitHub release yet |
 | JSON Reload | [JSON-Reload](JSON-Reload/) | [v1.0.0](https://github.com/SheilaEXE/StardewValleyMods/releases/tag/JSON-Reload/v1.0.0) |
 | Looking At Sebastian | [Looking-At-Sebastian](Looking-At-Sebastian/) | No GitHub release yet |
 | Lots of Kisses | [Lots-of-Kisses](Lots-of-Kisses/) | [v1.0.8](https://github.com/SheilaEXE/StardewValleyMods/releases/tag/Lots-of-Kisses/v1.0.8) |

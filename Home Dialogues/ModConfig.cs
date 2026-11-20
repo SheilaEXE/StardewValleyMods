@@ -1,4 +1,4 @@
-namespace HomeSweetHomeSpouseDialogues
+namespace HomeDialogues
 {
     public class ModConfig
     {
