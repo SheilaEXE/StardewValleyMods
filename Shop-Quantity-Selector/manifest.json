@@ -1,0 +1,10 @@
+{
+  "Name": "Shop Quantity Selector",
+  "Author": "NatrollEXE",
+  "Version": "0.1.0",
+  "Description": "Adds a quantity selector for buying stackable items in shops.",
+  "UniqueID": "NatrollEXE.ShopQuantitySelector",
+  "EntryDll": "ShopQuantitySelector.dll",
+  "MinimumApiVersion": "4.0.0",
+  "UpdateKeys": []
+}

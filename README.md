@@ -15,6 +15,7 @@ The current versions of my original code and content in each folder are licensed
 | Lots of Kisses | [Lots-of-Kisses](Lots-of-Kisses/) | [v1.0.8](https://github.com/SheilaEXE/StardewValleyMods/releases/tag/Lots-of-Kisses/v1.0.8) |
 | NPC Come To Me | [NPCComeToMe](NPCComeToMe/) | No GitHub release yet |
 | Outfit Reactions (public version) | [Outfit-Reactions](Outfit-Reactions/) | [v1.0.0-beta.1 (prerelease)](https://github.com/SheilaEXE/StardewValleyMods/releases/tag/Outfit-Reactions/v1.0.0-beta.1) |
+| Shop Quantity Selector | [Shop-Quantity-Selector](Shop-Quantity-Selector/) | No GitHub release yet |
 | Stay Hydrated! | [Stay-Hydrated](Stay-Hydrated/) | No GitHub release yet |
 | TileMarker | [TileMarker](TileMarker/) | [v1.1.0](https://github.com/SheilaEXE/StardewValleyMods/releases/tag/TileMarker/v1.1.0) |
 

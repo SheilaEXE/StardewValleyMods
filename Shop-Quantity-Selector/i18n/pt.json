@@ -1,0 +1,13 @@
+{
+  "menu.quantity": "Quantidade: {{quantity}}",
+  "menu.buy": "Comprar x{{quantity}}",
+  "menu.cancel": "Cancelar",
+  "menu.total-price": "Total: {{amount}} {{currency}}",
+  "menu.total-trade": "Troca: {{amount}} × {{item}}",
+  "menu.free": "Grátis",
+  "currency.gold": "ouros",
+  "currency.star-tokens": "fichas-estrela",
+  "currency.qi-coins": "moedas Qi",
+  "currency.qi-gems": "gemas Qi",
+  "currency.unknown": "moedas"
+}

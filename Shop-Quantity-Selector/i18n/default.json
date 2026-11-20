@@ -1,0 +1,13 @@
+{
+  "menu.quantity": "Quantity: {{quantity}}",
+  "menu.buy": "Buy x{{quantity}}",
+  "menu.cancel": "Cancel",
+  "menu.total-price": "Total: {{amount}} {{currency}}",
+  "menu.total-trade": "Trade: {{amount}} × {{item}}",
+  "menu.free": "Free",
+  "currency.gold": "g",
+  "currency.star-tokens": "Star Tokens",
+  "currency.qi-coins": "Qi Coins",
+  "currency.qi-gems": "Qi Gems",
+  "currency.unknown": "currency"
+}
